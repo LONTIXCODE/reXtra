@@ -1,6 +1,7 @@
 package com.github.andreyasadchy.xtra.ui.chat
 
 import android.content.Context
+import android.icu.text.CompactDecimalFormat
 import android.os.Build
 import android.os.Bundle
 import android.text.format.DateUtils
@@ -14,6 +15,8 @@ import android.widget.LinearLayout
 import android.widget.MultiAutoCompleteTextView
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.widget.PopupMenu
+import androidx.core.content.edit
 import androidx.core.content.res.use
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -82,6 +85,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
     private var showChatStatus = false
     private var hasRecentEmotes = false
     private var messagingEnabled = false
+    private var pointsAvailable = false
 
     private var autoCompleteAdapter: AutoCompleteAdapter<Any>? = null
 
@@ -126,8 +130,20 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                                 !TwitchApiHelper.getHelixHeaders(requireContext())[C.HEADER_TOKEN].isNullOrBlank())
                 val chatUrl = args.getString(KEY_CHAT_URL)
                 if (isLive || (args.getString(KEY_VIDEO_ID) != null && args.getInt(KEY_START_TIME) != -1) || chatUrl != null) {
-                    if (isLive && isLoggedIn && !channelLogin.isNullOrBlank()) {
-                        channelPoints.isVisible = true
+                    pointsAvailable = isLive && !accountLogin.isNullOrBlank() && !channelLogin.isNullOrBlank()
+                    if (pointsAvailable && channelLogin != null) {
+                        val locale = androidx.core.os.ConfigurationCompat.getLocales(resources.configuration)[0] ?: Locale.getDefault()
+                        val compact = CompactDecimalFormat.getInstance(locale, CompactDecimalFormat.CompactStyle.SHORT)
+                        channelPoints.setOnLongClickListener { button ->
+                            PopupMenu(requireContext(), button).apply {
+                                menu.add(R.string.hide_channel_points).setOnMenuItemClickListener {
+                                    requireContext().prefs().edit { putBoolean(C.CHAT_SHOW_POINTS, false) }
+                                    updatePointsButton()
+                                    true
+                                }
+                            }.show()
+                            true
+                        }
                         channelPoints.setOnClickListener {
                             if (!childFragmentManager.isStateSaved &&
                                 childFragmentManager.findFragmentByTag(ChannelRewardsDialog.TAG) == null
@@ -140,7 +156,8 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                         viewLifecycleOwner.lifecycleScope.launch {
                             repeatOnLifecycle(Lifecycle.State.STARTED) {
                                 viewModel.channelPointsBalance.collectLatest { balance ->
-                                    channelPoints.text = if (balance != null) {
+                                    channelPoints.text = balance?.let { compact.format(it) }
+                                    channelPoints.contentDescription = if (balance != null) {
                                         getString(R.string.channel_points_button_balance, balance)
                                     } else getString(R.string.channel_points)
                                 }
@@ -148,6 +165,10 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                         }
                     }
                     val enableMessaging = isLive && isLoggedIn
+                    messagingEnabled = enableMessaging
+                    editText.isVisible = enableMessaging
+                    emotes.isVisible = enableMessaging
+                    updatePointsButton()
                     val sizeModifier = (requireContext().prefs().getInt(C.CHAT_SIZE_MODIFIER, 100).toFloat() / 100f)
                     val showPlusPaints = requireContext().prefs().getBoolean(C.CHAT_SHOW_PLUS_PAINTS, true)
                     val showPlusBadges = requireContext().prefs().getBoolean(C.CHAT_SHOW_PLUS_BADGES, true)
@@ -334,11 +355,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                         }
                         replyView.visibility = View.GONE
                         send.setOnClickListener { sendMessage() }
-                        if ((view.parent?.parent?.parent?.parent as? View)?.id == R.id.slidingLayout && !requireContext().prefs().getBoolean(C.KEY_CHAT_BAR_VISIBLE, true)) {
-                            messageView.visibility = View.GONE
-                        } else {
-                            messageView.visibility = View.VISIBLE
-                        }
+                        messageView.isVisible = chatBarVisible(view)
                         viewPager.adapter = object : FragmentStateAdapter(this@ChatFragment) {
                             override fun getItemCount(): Int = 3
 
@@ -891,13 +908,30 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
         }
     }
 
+    private fun chatBarVisible(view: View): Boolean =
+        (view.parent?.parent?.parent?.parent as? View)?.id != R.id.slidingLayout ||
+            requireContext().prefs().getBoolean(C.KEY_CHAT_BAR_VISIBLE, true)
+
+    private fun updatePointsButton() {
+        val binding = _binding ?: return
+        binding.channelPoints.isVisible = pointsAvailable && requireContext().prefs().getBoolean(C.CHAT_SHOW_POINTS, true)
+        if (!messagingEnabled) {
+            binding.messageView.isVisible = binding.channelPoints.isVisible && chatBarVisible(binding.root)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
+        val pointsWereVisible = _binding?.channelPoints?.isVisible == true
+        updatePointsButton()
         val args = requireArguments()
         val channelId = args.getString(KEY_CHANNEL_ID)
         val channelLogin = args.getString(KEY_CHANNEL_LOGIN)
         if (args.getBoolean(KEY_IS_LIVE)) {
             viewModel.resumeLive(channelId, channelLogin)
+            if (!pointsWereVisible && _binding?.channelPoints?.isVisible == true && channelLogin != null) {
+                viewModel.refreshChannelPointsBalance(channelLogin)
+            }
         } else {
             viewModel.resumeReplay(
                 channelId = channelId,

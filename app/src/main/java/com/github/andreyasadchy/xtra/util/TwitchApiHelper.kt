@@ -270,6 +270,22 @@ object TwitchApiHelper {
         }
     }
 
+    fun getChannelPointsSessions(context: Context): List<Map<String, String>> {
+        val current = getGQLHeaders(context, true).takeIf {
+            !it[C.HEADER_CLIENT_ID].isNullOrBlank() && !it[C.HEADER_TOKEN].isNullOrBlank()
+        }
+        val webClientId = context.prefs().getString(C.GQL_CLIENT_ID_WEB, "kimne78kx3ncx6brgo4mv6wki5h1ko")
+        val webToken = context.tokenPrefs().getString(C.GQL_TOKEN_WEB, null)
+        val web = if (!webClientId.isNullOrBlank() && !webToken.isNullOrBlank()) {
+            mapOf(C.HEADER_CLIENT_ID to webClientId, C.HEADER_TOKEN to addTokenPrefixGQL(webToken))
+        } else null
+        return if (context.prefs().getBoolean(C.ENABLE_INTEGRITY, false)) {
+            listOfNotNull(current, web).distinct()
+        } else {
+            listOfNotNull(web, current).distinct()
+        }
+    }
+
     fun isIntegrityTokenExpired(context: Context): Boolean {
         return System.currentTimeMillis() >= context.tokenPrefs().getLong(C.INTEGRITY_EXPIRATION, 0)
     }

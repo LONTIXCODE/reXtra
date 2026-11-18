@@ -96,6 +96,7 @@ class ChatViewModel(
     val channelPointsBalance: StateFlow<Int?> = pointsBalance
     private val redemptionLock = Mutex()
     private var pointsRefresh: Job? = null
+    private var rewardSession: Map<String, String>? = null
 
     private var chatReadIRCSocket: ChatReadIRCSocket? = null
     private var chatWriteIRCSocket: ChatWriteIRCSocket? = null
@@ -1029,6 +1030,7 @@ class ChatViewModel(
     fun startLiveChat(channelId: String?, channelLogin: String) {
         stopLiveChat()
         pointsBalance.value = null
+        rewardSession = null
         val proxy = runCatching { ChatProxyPreferences.read(applicationContext) }
         chatProxyClient = proxy.mapCatching { it?.client(okHttpClient.value) }
         chatProxyClient.exceptionOrNull()?.let { error ->
@@ -1189,47 +1191,73 @@ class ChatViewModel(
         return chatReadJob?.isActive
     }
 
-    private fun refreshChannelPointsBalance(channelLogin: String) {
-        if (pointsRefresh?.isActive == true || redemptionLock.isLocked) return
-        val headers = TwitchApiHelper.getGQLHeaders(applicationContext, true)
-        if (headers[C.HEADER_TOKEN].isNullOrBlank()) return
+    fun refreshChannelPointsBalance(channelLogin: String) {
+        if (!started || !applicationContext.prefs().getBoolean(C.CHAT_SHOW_POINTS, true) ||
+            pointsRefresh?.isActive == true || redemptionLock.isLocked
+        ) return
+        if (TwitchApiHelper.getChannelPointsSessions(applicationContext).isEmpty()) return
         pointsRefresh = viewModelScope.launch {
             try {
-                val response = graphQLRepository.loadChannelRewards(
-                    applicationContext.prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
-                    headers,
-                    channelLogin,
-                    chatProxyClient.getOrThrow(),
-                    includeRewards = false,
-                )
-                if (response.errors.isNullOrEmpty()) {
-                    val channel = response.data?.community?.channel
-                    pointsBalance.value = channel?.takeIf { it.communityPointsSettings?.isEnabled == true }
-                        ?.self?.communityPoints?.balance
-                }
+                val community = loadAuthenticatedRewards(channelLogin, includeRewards = false)
+                pointsBalance.value = community.channel?.self?.communityPoints?.balance
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                // Opening the rewards dialog shows a detailed loading error and allows retry.
+                // Opening the rewards dialog can report the failure and retry.
             }
         }
     }
 
+    private suspend fun loadAuthenticatedRewards(
+        channelLogin: String,
+        includeRewards: Boolean,
+    ): ChannelRewardsResponse.Community {
+        val sessions = TwitchApiHelper.getChannelPointsSessions(applicationContext)
+        if (sessions.isEmpty()) {
+            throw channelPointsError(
+                if (!TwitchApiHelper.getHelixHeaders(applicationContext)[C.HEADER_TOKEN].isNullOrBlank()) {
+                    R.string.channel_points_gql_required
+                } else R.string.channel_points_sign_in
+            )
+        }
+        var errors: List<Error>? = null
+        var missingBalance = false
+        for (headers in sessions) {
+            val response = graphQLRepository.loadChannelRewards(
+                applicationContext.prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
+                headers,
+                channelLogin,
+                chatProxyClient.getOrThrow(),
+                includeRewards,
+            )
+            if (!response.errors.isNullOrEmpty()) {
+                if (errors.isNullOrEmpty() || response.errors.any { it.message == C.FAILED_INTEGRITY_CHECK }) {
+                    errors = response.errors
+                }
+                continue
+            }
+            val community = response.data?.community ?: continue
+            val channel = community.channel ?: throw channelPointsError(R.string.channel_points_unavailable)
+            if (channel.communityPointsSettings?.isEnabled != true) {
+                throw channelPointsError(R.string.channel_points_unavailable)
+            }
+            if (channel.self?.communityPoints?.balance != null) {
+                if (includeRewards) rewardSession = headers
+                return community
+            }
+            missingBalance = true
+        }
+        if (includeRewards) checkChannelPointsErrors(errors)
+        throw channelPointsError(if (missingBalance) R.string.channel_points_balance_missing else R.string.channel_points_load_error)
+    }
+
     suspend fun loadRewards(channelLogin: String): RewardCatalog {
         pointsRefresh?.cancel()
-        val response = graphQLRepository.loadChannelRewards(
-            applicationContext.prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
-            channelPointsHeaders(),
-            channelLogin,
-            chatProxyClient.getOrThrow(),
-        )
-        checkChannelPointsErrors(response.errors)
-        val community = response.data?.community ?: throw channelPointsError(R.string.channel_points_load_error)
-        val channel = community.channel ?: throw channelPointsError(R.string.channel_points_unavailable)
-        val settings = channel.communityPointsSettings?.takeIf { it.isEnabled }
-            ?: throw channelPointsError(R.string.channel_points_unavailable)
-        val balance = channel.self?.communityPoints?.balance
-            ?: throw channelPointsError(R.string.channel_points_sign_in)
+        rewardSession = null
+        val community = loadAuthenticatedRewards(channelLogin, includeRewards = true)
+        val channel = requireNotNull(community.channel)
+        val settings = requireNotNull(channel.communityPointsSettings)
+        val balance = requireNotNull(channel.self?.communityPoints?.balance)
         pointsBalance.value = balance
         val rewards = settings.customRewards.orEmpty().filterNotNull().filter {
             it.isEnabled && it.pricingType == "POINTS" && it.cost != null
@@ -1241,8 +1269,10 @@ class ChatViewModel(
         if (!redemptionLock.tryLock()) throw channelPointsError(R.string.channel_points_busy)
         try {
             pointsRefresh?.cancel()
+            val headers = TwitchApiHelper.getChannelPointsSessions(applicationContext).firstOrNull { it == rewardSession }
+                ?: throw channelPointsError(R.string.channel_points_refresh_before_redeem)
             val response = graphQLRepository.redeemChannelReward(
-                channelPointsHeaders(),
+                headers,
                 channelId,
                 reward,
                 text,
@@ -1263,11 +1293,6 @@ class ChatViewModel(
             redemptionLock.unlock()
         }
     }
-
-    private fun channelPointsHeaders(): Map<String, String> =
-        TwitchApiHelper.getGQLHeaders(applicationContext, true).also {
-            if (it[C.HEADER_TOKEN].isNullOrBlank()) throw channelPointsError(R.string.channel_points_sign_in)
-        }
 
     private suspend fun checkChannelPointsErrors(errors: List<Error>?, fallback: Int = R.string.channel_points_load_error) {
         if (errors.isNullOrEmpty()) return
@@ -1580,30 +1605,30 @@ class ChatViewModel(
         }
 
         override suspend fun onClaimAvailable() {
-            if (collectPoints) {
-                if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                    viewModelScope.launch {
-                        try {
-                            val response = graphQLRepository.loadChannelPointsContext(networkLibrary, gqlHeaders, channelLogin)
-                            if (enableIntegrity) {
-                                response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
-                                    integrity.emit("refresh")
-                                    return@launch
-                                }
-                            }
-                            response.data?.community?.channel?.self?.communityPoints?.availableClaim?.id?.let { claimId ->
-                                val response = graphQLRepository.loadClaimPoints(networkLibrary, gqlHeaders, channelId, claimId)
-                                if (enableIntegrity) {
-                                    response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
-                                        integrity.emit("refresh")
-                                        return@launch
-                                    }
-                                }
-                            }
-                        } catch (e: Exception) {
-
+            if (!collectPoints) return
+            val headers = gqlHeaders.takeIf { !it[C.HEADER_TOKEN].isNullOrBlank() }
+                ?: TwitchApiHelper.getChannelPointsSessions(applicationContext).firstOrNull()
+                ?: return
+            viewModelScope.launch {
+                try {
+                    val response = graphQLRepository.loadChannelPointsContext(networkLibrary, headers, channelLogin)
+                    if (enableIntegrity) {
+                        response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
+                            integrity.emit("refresh")
+                            return@launch
                         }
                     }
+                    response.data?.community?.channel?.self?.communityPoints?.availableClaim?.id?.let { claimId ->
+                        val response = graphQLRepository.loadClaimPoints(networkLibrary, headers, channelId, claimId)
+                        if (enableIntegrity) {
+                            response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
+                                integrity.emit("refresh")
+                                return@launch
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+
                 }
             }
         }

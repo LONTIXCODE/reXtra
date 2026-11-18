@@ -38,18 +38,6 @@
                 tools:visibility="visible" />
         </FrameLayout>
 
-        <Button
-            android:id="@+id/channelPoints"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="start"
-            android:layout_marginStart="4dp"
-            android:minWidth="0dp"
-            android:singleLine="true"
-            android:text="@string/channel_points"
-            android:visibility="gone" />
-
         <LinearLayout
             android:id="@+id/replyView"
             android:layout_width="match_parent"
@@ -91,6 +79,28 @@
             android:visibility="gone"
             app:layout_constraintBottom_toTopOf="@id/emoteMenu"
             tools:visibility="visible">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/channelPoints"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginStart="4dp"
+                android:contentDescription="@string/channel_points"
+                android:insetTop="6dp"
+                android:insetBottom="6dp"
+                android:minWidth="48dp"
+                android:minHeight="0dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:singleLine="true"
+                android:textSize="12sp"
+                android:visibility="gone"
+                app:icon="@drawable/ic_channel_points"
+                app:iconGravity="textStart"
+                app:iconPadding="4dp"
+                app:iconSize="16dp" />
 
             <MultiAutoCompleteTextView
                 android:id="@+id/editText"

@@ -15,6 +15,7 @@ import java.net.Socket
 import java.net.SocketAddress
 import javax.net.SocketFactory
 import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLHandshakeException
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
@@ -31,9 +32,9 @@ class ChatProxy(
     fun openSocket(target: String, targetPort: Int, tls: Boolean): Socket =
         TunnelSocket().apply { connect(InetSocketAddress.createUnresolved(target, targetPort), TIMEOUT) }.let {
             try {
-                if (tls) secure(it, target, targetPort) else it
+                if (tls) secure(it, target, targetPort, "chat destination via ${type.name} proxy") else it
             } catch (e: Exception) {
-                it.close()
+                runCatching { it.close() }
                 throw e
             }
         }
@@ -84,7 +85,7 @@ class ChatProxy(
                 super.connect(InetSocketAddress(proxyHost, proxyPort), timeout.takeIf { it > 0 } ?: TIMEOUT)
                 soTimeout = TIMEOUT
                 if (type == Type.HTTPS) {
-                    transport = secure(this, proxyHost, proxyPort)
+                    transport = secure(this, proxyHost, proxyPort, "HTTPS proxy")
                 }
                 if (type == Type.SOCKS5) {
                     connectSocks5(target.hostString, target.port)
@@ -93,7 +94,7 @@ class ChatProxy(
                 }
                 soTimeout = readTimeout
             } catch (e: Exception) {
-                close()
+                runCatching { close() }
                 throw e
             }
         }
@@ -185,18 +186,24 @@ class ChatProxy(
         }
     }
 
-    private fun secure(socket: Socket, host: String, port: Int): SSLSocket {
+    private fun secure(socket: Socket, host: String, port: Int, endpoint: String): SSLSocket {
         val ssl = tlsFactory.createSocket(socket, host, port, true) as SSLSocket
         try {
             // Verify the hostname against the platform trust store for both TLS layers.
             ssl.sslParameters = ssl.sslParameters.apply { endpointIdentificationAlgorithm = "HTTPS" }
+            Conscrypt.setHostname(ssl, host)
             val readTimeout = ssl.soTimeout
             ssl.soTimeout = TIMEOUT
             ssl.startHandshake()
             ssl.soTimeout = readTimeout
             return ssl
         } catch (e: Exception) {
-            ssl.close()
+            runCatching { ssl.close() }
+            if (e is SSLHandshakeException) {
+                throw SSLHandshakeException("TLS at $endpoint ($host): ${e.message ?: e.javaClass.simpleName}").apply {
+                    initCause(e)
+                }
+            }
             throw e
         }
     }

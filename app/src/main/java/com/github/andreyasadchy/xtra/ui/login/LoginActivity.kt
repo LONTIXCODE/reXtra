@@ -90,7 +90,7 @@ class LoginActivity : AppCompatActivity() {
             val gqlHeaders = TwitchApiHelper.getGQLHeaders(this@LoginActivity, true)
             val oldGQLToken = gqlHeaders[C.HEADER_TOKEN]?.removePrefix("OAuth ")
             val oldGQLWebToken = tokenPrefs().getString(C.GQL_TOKEN_WEB, null)
-            if (!oldGQLToken.isNullOrBlank() || !oldHelixToken.isNullOrBlank()) {
+            if (!oldGQLToken.isNullOrBlank() || !oldHelixToken.isNullOrBlank() || !oldGQLWebToken.isNullOrBlank()) {
                 TwitchApiHelper.checkedValidation = false
                 tokenPrefs().edit {
                     putString(C.TOKEN, null)
@@ -672,7 +672,7 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun done() {
-        if (!gqlToken.isNullOrBlank() || !helixToken.isNullOrBlank()) {
+        if (!gqlToken.isNullOrBlank() || !helixToken.isNullOrBlank() || !gqlWebToken.isNullOrBlank()) {
             TwitchApiHelper.checkedValidation = true
             prefs().edit {
                 if (!gqlClientId.isNullOrBlank()) {

@@ -40,6 +40,7 @@ import com.github.andreyasadchy.xtra.repository.PlayerRepository
 import com.github.andreyasadchy.xtra.ui.login.LoginActivity
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.NetworkUtils
+import com.github.andreyasadchy.xtra.util.findUpdateAsset
 import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.tokenPrefs
@@ -52,11 +53,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.longOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.chromium.net.CronetEngine
@@ -1075,17 +1071,9 @@ class MainViewModel(
                             }
                         }
                     }
-                    response["assets"]?.jsonArray?.find {
-                        it.jsonObject.getValue("content_type").jsonPrimitive.contentOrNull == "application/vnd.android.package-archive"
-                    }?.jsonObject?.let { obj ->
-                        obj.getValue("updated_at").jsonPrimitive.contentOrNull?.let {
-                            Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }
-                        }?.let {
-                            if (it > lastChecked) {
-                                updateSize = obj["size"]?.jsonPrimitive?.longOrNull
-                                obj.getValue("browser_download_url").jsonPrimitive.contentOrNull
-                            } else null
-                        }
+                    findUpdateAsset(response, url, lastChecked)?.let { asset ->
+                        updateSize = asset.size
+                        asset.url
                     }
                 } catch (e: Exception) {
                     null

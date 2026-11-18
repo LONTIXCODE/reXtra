@@ -606,4 +606,9 @@
     <string name="channel_points_busy">Запрос награды уже выполняется.</string>
     <string name="show_plus_paints">Раскраски ников Chatterino+</string>
     <string name="show_plus_badges">Значки Chatterino+</string>
+    <string name="show_channel_points">Показывать баллы в строке чата</string>
+    <string name="hide_channel_points">Скрыть кнопку баллов</string>
+    <string name="channel_points_gql_required">Вы вошли в Twitch через Helix. Для баллов выберите «Оба» или GQL в настройках токена API и войдите снова.</string>
+    <string name="channel_points_balance_missing">Twitch не вернул баланс для этой сессии. Попробуйте обновить окно или заново войти в Twitch.</string>
+    <string name="channel_points_refresh_before_redeem">Сессия Twitch изменилась. Обновите список наград перед списанием.</string>
 </resources>

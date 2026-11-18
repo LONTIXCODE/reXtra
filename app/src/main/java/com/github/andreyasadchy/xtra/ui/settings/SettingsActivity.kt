@@ -71,6 +71,7 @@ import com.github.andreyasadchy.xtra.util.applyTheme
 import com.github.andreyasadchy.xtra.util.chat.ChatProxyPreferences
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.util.updateCheckUrl
 import com.github.andreyasadchy.xtra.util.tokenPrefs
 import com.google.android.material.appbar.AppBarLayout
 import com.google.mlkit.common.model.DownloadConditions
@@ -446,7 +447,7 @@ class SettingsActivity : AppCompatActivity() {
             findPreference<Preference>("check_updates")?.setOnPreferenceClickListener {
                 viewModel.checkUpdates(
                     requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
-                    requireContext().prefs().getString(C.UPDATE_URL, null) ?: "https://api.github.com/repos/crackededed/xtra/releases/tags/latest",
+                    requireContext().updateCheckUrl(),
                     requireContext().tokenPrefs().getLong(C.UPDATE_LAST_CHECKED, 0)
                 )
                 true
@@ -1430,6 +1431,7 @@ class SettingsActivity : AppCompatActivity() {
 
     class UpdateSettingsFragment : MaterialPreferenceFragment() {
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+            requireContext().updateCheckUrl()
             setPreferencesFromResource(R.xml.update_preferences, rootKey)
             findPreference<SwitchPreferenceCompat>("update_check_enabled")?.setOnPreferenceChangeListener { _, newValue ->
                 if (Build.VERSION.SDK_INT == Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&

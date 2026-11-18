@@ -625,4 +625,10 @@
     <string name="channel_points_busy">A reward request is already in progress.</string>
     <string name="show_plus_paints">Show Chatterino+ nick paints</string>
     <string name="show_plus_badges">Show Chatterino+ badges</string>
+    <string name="show_channel_points">Show channel points in the chat bar</string>
+    <string name="hide_channel_points">Hide channel points</string>
+    <string name="channel_points_gql_required">This Twitch sign-in includes Helix only. Select Both or GQL in API token settings and sign in again to use points.</string>
+    <string name="channel_points_balance_missing">Twitch did not return a balance for this session. Refresh or sign in to Twitch again.</string>
+    <string name="channel_points_refresh_before_redeem">Your Twitch session changed. Refresh the rewards before redeeming.</string>
+    <string name="rextra_update_feed" translatable="false">https://api.github.com/repos/LONTIXCODE/reXtra/releases/latest</string>
 </resources>

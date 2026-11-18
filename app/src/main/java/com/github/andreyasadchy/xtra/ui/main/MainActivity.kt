@@ -93,6 +93,7 @@ import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.applyTheme
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.util.updateCheckUrl
 import com.github.andreyasadchy.xtra.util.tokenPrefs
 import com.google.android.material.color.MaterialColors
 import kotlinx.coroutines.flow.collectLatest
@@ -233,7 +234,7 @@ class MainActivity : AppCompatActivity() {
                                 ) {
                                     viewModel.checkUpdates(
                                         prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP),
-                                        prefs.getString(C.UPDATE_URL, null) ?: "https://api.github.com/repos/crackededed/xtra/releases/tags/latest",
+                                        updateCheckUrl(),
                                         tokenPrefs().getLong(C.UPDATE_LAST_CHECKED, 0)
                                     )
                                 }
