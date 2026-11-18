@@ -1,21 +1,22 @@
-# Xtra for Twitch
+# reXtra для Twitch
 
-<img src="https://github.com/AndreyAsadchy/Xtra/blob/197ba90cac879abd2a5645393ce361847f12fa0b/app/src/main/ic_launcher-web.png" align="left" width="100"/>
+reXtra — форк Xtra для Android с прокси чата, баллами Twitch и оформлением ников Chatterino+.
 
-Xtra is a Twitch player and browser for Android.
+[Скачать APK из последнего релиза](https://github.com/LONTIXCODE/reXtra/releases/latest)
 
-</br>
-</br>
+## Возможности
 
-## Download
+- Прокси живого чата Twitch через SOCKS5, HTTP или HTTPS с поддержкой логина и пароля.
+- Баланс баллов канала и получение пользовательских наград с подтверждением списания. Кнопку «Баллы» можно скрыть отдельно.
+- Градиенты, пейнты с изображениями и бейджи Chatterino+. Раскраски и бейджи включаются отдельно в настройках чата.
+- Ручная и автоматическая проверка обновлений через GitHub Releases reXtra.
 
-[<img src="https://f-droid.org/badge/get-it-on.png"
-      alt="Get it on F-Droid"
-      height="80">](https://f-droid.org/packages/com.github.andreyasadchy.xtra/)
+## Установка и исходники
 
-You can find released APKs [here](https://github.com/crackededed/Xtra/releases/tag/latest).
+Откройте последний релиз, скачайте APK из раздела **Assets** и установите его на Android. Для установки поверх существующей версии подписи APK должны совпадать.
 
-[Xtra subreddit](https://www.reddit.com/r/XtraForTwitch)
+Исходники конкретной сборки доступны в архиве **Source code** на странице релиза. Изменения reXtra находятся в [ветке разработки](https://github.com/LONTIXCODE/reXtra/tree/chat-proxy-points-chatterino-plus).
 
-## License
-Xtra is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+## Лицензия
+
+reXtra основан на [Xtra](https://github.com/crackededed/Xtra) и распространяется под лицензией [GNU Affero General Public License v3.0](LICENSE).
