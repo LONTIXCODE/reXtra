@@ -14,7 +14,7 @@ import kotlin.time.Instant
 private const val REXTRA_FEED = "https://api.github.com/repos/LONTIXCODE/reXtra/releases/latest"
 private const val OLD_XTRA_FEED = "https://api.github.com/repos/crackededed/xtra/releases/tags/latest"
 private const val APK_TYPE = "application/vnd.android.package-archive"
-private val releaseVersion = Regex("""v?(\d+)\.(\d+)\.(\d+)""")
+private val releaseVersion = Regex("""v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?""")
 
 fun Context.updateCheckUrl(): String {
     val preferences = prefs()
@@ -57,9 +57,11 @@ private fun parseVersion(tag: String?): Version? {
         groups[1].toIntOrNull() ?: return null,
         groups[2].toIntOrNull() ?: return null,
         groups[3].toIntOrNull() ?: return null,
+        groups[4].ifEmpty { "0" }.toIntOrNull() ?: return null,
     )
 }
 
-private data class Version(val major: Int, val minor: Int, val patch: Int) : Comparable<Version> {
-    override fun compareTo(other: Version) = compareValuesBy(this, other, Version::major, Version::minor, Version::patch)
+private data class Version(val major: Int, val minor: Int, val patch: Int, val revision: Int) : Comparable<Version> {
+    override fun compareTo(other: Version) =
+        compareValuesBy(this, other, Version::major, Version::minor, Version::patch, Version::revision)
 }

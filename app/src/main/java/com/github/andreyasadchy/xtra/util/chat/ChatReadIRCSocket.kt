@@ -61,15 +61,15 @@ class ChatReadIRCSocket(
     }
 
     private suspend fun connect() = withContext(Dispatchers.IO) {
-        socket = proxy?.openSocket("irc.twitch.tv", 6697, tls = true) ?: if (useSSL) {
+        socket = proxy?.openSocket(ChatUtils.IRC_HOST, 6697, tls = true) ?: if (useSSL) {
             val socketFactory = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 SSLSocketFactory.getDefault()
             } else {
                 SSLContext.getDefault().socketFactory
             }
-            socketFactory.createSocket("irc.twitch.tv", 6697)
+            socketFactory.createSocket(ChatUtils.IRC_HOST, 6697)
         } else {
-            Socket("irc.twitch.tv", 6667)
+            Socket(ChatUtils.IRC_HOST, 6667)
         }
         if (!isActive) {
             socket?.close()

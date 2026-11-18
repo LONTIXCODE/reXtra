@@ -12,6 +12,8 @@ import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 
 object ChatUtils {
 
+    const val IRC_HOST = "irc.chat.twitch.tv"
+
     const val ACTION = "\u0001ACTION"
 
     class IRCMessage(
