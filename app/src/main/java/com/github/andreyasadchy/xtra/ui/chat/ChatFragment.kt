@@ -34,7 +34,7 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.adapter.FragmentStateAdapter
-import coil3.imageLoader
+import com.github.andreyasadchy.xtra.util.chat.chatImageLoader
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import coil3.request.target
@@ -182,7 +182,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                                 }
                                 while (isActive) {
                                     viewModel.chatterinoPlus.refresh()
-                                    delay(5 * 60_000L)
+                                    delay(60_000L)
                                 }
                             }
                         }
@@ -501,7 +501,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                                         } else {
                                             raidLayout.visibility = View.VISIBLE
                                             raidLayout.setOnClickListener { viewModel.raidClicked.value = raid }
-                                            requireContext().imageLoader.enqueue(
+                                            requireContext().chatImageLoader().enqueue(
                                                 ImageRequest.Builder(requireContext()).apply {
                                                     data(raid.targetImage)
                                                     if (requireContext().prefs().getBoolean(C.UI_ROUND_USER_IMAGE, true)) {

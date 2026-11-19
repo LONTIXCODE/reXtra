@@ -11,13 +11,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import coil3.asDrawable
-import coil3.imageLoader
+import com.github.andreyasadchy.xtra.util.chat.chatImageLoader
 import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.bumptech.glide.load.model.GlideUrl
+import com.github.andreyasadchy.xtra.util.chat.chatGlideUrl
 import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
 import com.github.andreyasadchy.xtra.BuildConfig
@@ -86,7 +86,7 @@ class ImageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listener
             val args = requireArguments()
             val imageLibrary = requireContext().prefs().getString(C.CHAT_IMAGE_LIBRARY, "0")
             if (imageLibrary == "0" || (imageLibrary == "1" && !args.getString(IMAGE_FORMAT).equals("webp", true))) {
-                requireContext().imageLoader.enqueue(
+                requireContext().chatImageLoader().enqueue(
                     ImageRequest.Builder(requireContext()).apply {
                         data(args.getString(IMAGE_URL))
                         if (args.getBoolean(IMAGE_THIRD_PARTY)) {
@@ -108,9 +108,7 @@ class ImageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listener
             } else {
                 Glide.with(this@ImageClickedDialog)
                     .load(args.getString(IMAGE_URL).let {
-                        if (args.getBoolean(IMAGE_THIRD_PARTY)) {
-                            GlideUrl(it) { mapOf("User-Agent" to "Xtra/" + BuildConfig.VERSION_NAME) }
-                        } else it
+                        chatGlideUrl(it, args.getBoolean(IMAGE_THIRD_PARTY))
                     })
                     .diskCacheStrategy(DiskCacheStrategy.DATA)
                     .into(object : CustomTarget<Drawable>() {

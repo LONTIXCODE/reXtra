@@ -903,10 +903,10 @@ class PlayerRepository(
         }
     }
 
-    suspend fun loadGlobalSTVEmoteSetResponse(networkLibrary: String?): String = withContext(Dispatchers.IO) {
+    suspend fun loadGlobalSTVEmoteSetResponse(networkLibrary: String?, proxyClient: OkHttpClient? = null): String = withContext(Dispatchers.IO) {
         val url = "https://7tv.io/v3/emote-sets/global"
         when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
+            proxyClient == null && networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
                 val response = suspendCancellableCoroutine { continuation ->
                     val timeout = NetworkUtils.HttpEngineTimeout()
                     val request = httpEngine.value!!.newUrlRequestBuilder(
@@ -925,7 +925,7 @@ class PlayerRepository(
                 }
                 response.body.decodeToString()
             }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
+            proxyClient == null && networkLibrary == C.CRONET && cronetEngine.value != null -> {
                 val response = suspendCancellableCoroutine { continuation ->
                     val timeout = NetworkUtils.CronetTimeout()
                     val request = cronetEngine.value!!.newUrlRequestBuilder(
@@ -945,7 +945,7 @@ class PlayerRepository(
                 response.body.decodeToString()
             }
             else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
+                (proxyClient ?: okHttpClient.value).newCall(Request.Builder().apply {
                     url(url)
                     header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
                 }.build()).executeAsync().use { response ->
@@ -955,10 +955,10 @@ class PlayerRepository(
         }
     }
 
-    suspend fun loadSTVEmoteSetResponse(networkLibrary: String?, setId: String): String = withContext(Dispatchers.IO) {
+    suspend fun loadSTVEmoteSetResponse(networkLibrary: String?, setId: String, proxyClient: OkHttpClient? = null): String = withContext(Dispatchers.IO) {
         val url = "https://7tv.io/v3/emote-sets/${setId}"
         when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
+            proxyClient == null && networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
                 val response = suspendCancellableCoroutine { continuation ->
                     val timeout = NetworkUtils.HttpEngineTimeout()
                     val request = httpEngine.value!!.newUrlRequestBuilder(
@@ -977,7 +977,7 @@ class PlayerRepository(
                 }
                 response.body.decodeToString()
             }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
+            proxyClient == null && networkLibrary == C.CRONET && cronetEngine.value != null -> {
                 val response = suspendCancellableCoroutine { continuation ->
                     val timeout = NetworkUtils.CronetTimeout()
                     val request = cronetEngine.value!!.newUrlRequestBuilder(
@@ -997,7 +997,7 @@ class PlayerRepository(
                 response.body.decodeToString()
             }
             else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
+                (proxyClient ?: okHttpClient.value).newCall(Request.Builder().apply {
                     url(url)
                     header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
                 }.build()).executeAsync().use { response ->
@@ -1012,10 +1012,10 @@ class PlayerRepository(
         Pair(response.id, parseSTVEmotes(response.emotes, useWebp, if (global) Emote.GLOBAL_STV else Emote.CHANNEL_STV))
     }
 
-    suspend fun loadSTVUserResponse(networkLibrary: String?, channelId: String): String = withContext(Dispatchers.IO) {
+    suspend fun loadSTVUserResponse(networkLibrary: String?, channelId: String, proxyClient: OkHttpClient? = null): String = withContext(Dispatchers.IO) {
         val url = "https://7tv.io/v3/users/twitch/${channelId}"
         when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
+            proxyClient == null && networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
                 val response = suspendCancellableCoroutine { continuation ->
                     val timeout = NetworkUtils.HttpEngineTimeout()
                     val request = httpEngine.value!!.newUrlRequestBuilder(
@@ -1034,7 +1034,7 @@ class PlayerRepository(
                 }
                 response.body.decodeToString()
             }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
+            proxyClient == null && networkLibrary == C.CRONET && cronetEngine.value != null -> {
                 val response = suspendCancellableCoroutine { continuation ->
                     val timeout = NetworkUtils.CronetTimeout()
                     val request = cronetEngine.value!!.newUrlRequestBuilder(
@@ -1054,7 +1054,7 @@ class PlayerRepository(
                 response.body.decodeToString()
             }
             else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
+                (proxyClient ?: okHttpClient.value).newCall(Request.Builder().apply {
                     url(url)
                     header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
                 }.build()).executeAsync().use { response ->
@@ -1104,10 +1104,10 @@ class PlayerRepository(
         }
     }
 
-    suspend fun getSTVUser(networkLibrary: String?, userId: String): String? = withContext(Dispatchers.IO) {
+    suspend fun getSTVUser(networkLibrary: String?, userId: String, proxyClient: OkHttpClient? = null): String? = withContext(Dispatchers.IO) {
         val url = "https://7tv.io/v3/users/twitch/${userId}"
         val response = when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
+            proxyClient == null && networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
                 val response = suspendCancellableCoroutine { continuation ->
                     val timeout = NetworkUtils.HttpEngineTimeout()
                     val request = httpEngine.value!!.newUrlRequestBuilder(
@@ -1126,7 +1126,7 @@ class PlayerRepository(
                 }
                 response.body.decodeToString()
             }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
+            proxyClient == null && networkLibrary == C.CRONET && cronetEngine.value != null -> {
                 val response = suspendCancellableCoroutine { continuation ->
                     val timeout = NetworkUtils.CronetTimeout()
                     val request = cronetEngine.value!!.newUrlRequestBuilder(
@@ -1146,7 +1146,7 @@ class PlayerRepository(
                 response.body.decodeToString()
             }
             else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
+                (proxyClient ?: okHttpClient.value).newCall(Request.Builder().apply {
                     url(url)
                     header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
                 }.build()).executeAsync().use { response ->
@@ -1157,7 +1157,7 @@ class PlayerRepository(
         JSONObject(response).optJSONObject("user")?.optString("id")
     }
 
-    suspend fun sendSTVPresence(networkLibrary: String?, stvUserId: String, channelId: String, sessionId: String?, self: Boolean) = withContext(Dispatchers.IO) {
+    suspend fun sendSTVPresence(networkLibrary: String?, stvUserId: String, channelId: String, sessionId: String?, self: Boolean, proxyClient: OkHttpClient? = null) = withContext(Dispatchers.IO) {
         val url = "https://7tv.io/v3/users/${stvUserId}/presences"
         val body = buildJsonObject {
             put("kind", 1)
@@ -1169,7 +1169,7 @@ class PlayerRepository(
             }
         }.toString()
         when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
+            proxyClient == null && networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
                 suspendCancellableCoroutine { continuation ->
                     val timeout = NetworkUtils.HttpEngineTimeout()
                     val request = httpEngine.value!!.newUrlRequestBuilder(
@@ -1189,7 +1189,7 @@ class PlayerRepository(
                     }
                 }
             }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
+            proxyClient == null && networkLibrary == C.CRONET && cronetEngine.value != null -> {
                 suspendCancellableCoroutine<NetworkUtils.CronetResponse> { continuation ->
                     val timeout = NetworkUtils.CronetTimeout()
                     val request = cronetEngine.value!!.newUrlRequestBuilder(
@@ -1210,7 +1210,7 @@ class PlayerRepository(
                 }
             }
             else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
+                (proxyClient ?: okHttpClient.value).newCall(Request.Builder().apply {
                     url(url)
                     header("Content-Type", "application/json")
                     header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
@@ -1220,10 +1220,10 @@ class PlayerRepository(
         }
     }
 
-    suspend fun loadGlobalBTTVEmotesResponse(networkLibrary: String?): String = withContext(Dispatchers.IO) {
+    suspend fun loadGlobalBTTVEmotesResponse(networkLibrary: String?, proxyClient: OkHttpClient? = null): String = withContext(Dispatchers.IO) {
         val url = "https://api.betterttv.net/3/cached/emotes/global"
         when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
+            proxyClient == null && networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
                 val response = suspendCancellableCoroutine { continuation ->
                     val timeout = NetworkUtils.HttpEngineTimeout()
                     val request = httpEngine.value!!.newUrlRequestBuilder(
@@ -1242,7 +1242,7 @@ class PlayerRepository(
                 }
                 response.body.decodeToString()
             }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
+            proxyClient == null && networkLibrary == C.CRONET && cronetEngine.value != null -> {
                 val response = suspendCancellableCoroutine { continuation ->
                     val timeout = NetworkUtils.CronetTimeout()
                     val request = cronetEngine.value!!.newUrlRequestBuilder(
@@ -1262,7 +1262,7 @@ class PlayerRepository(
                 response.body.decodeToString()
             }
             else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
+                (proxyClient ?: okHttpClient.value).newCall(Request.Builder().apply {
                     url(url)
                     header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
                 }.build()).executeAsync().use { response ->
@@ -1277,10 +1277,10 @@ class PlayerRepository(
         parseBTTVEmotes(response, useWebp, Emote.GLOBAL_BTTV)
     }
 
-    suspend fun loadBTTVEmotesResponse(networkLibrary: String?, channelId: String): String = withContext(Dispatchers.IO) {
+    suspend fun loadBTTVEmotesResponse(networkLibrary: String?, channelId: String, proxyClient: OkHttpClient? = null): String = withContext(Dispatchers.IO) {
         val url = "https://api.betterttv.net/3/cached/users/twitch/${channelId}"
         when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
+            proxyClient == null && networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
                 val response = suspendCancellableCoroutine { continuation ->
                     val timeout = NetworkUtils.HttpEngineTimeout()
                     val request = httpEngine.value!!.newUrlRequestBuilder(
@@ -1299,7 +1299,7 @@ class PlayerRepository(
                 }
                 response.body.decodeToString()
             }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
+            proxyClient == null && networkLibrary == C.CRONET && cronetEngine.value != null -> {
                 val response = suspendCancellableCoroutine { continuation ->
                     val timeout = NetworkUtils.CronetTimeout()
                     val request = cronetEngine.value!!.newUrlRequestBuilder(
@@ -1319,7 +1319,7 @@ class PlayerRepository(
                 response.body.decodeToString()
             }
             else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
+                (proxyClient ?: okHttpClient.value).newCall(Request.Builder().apply {
                     url(url)
                     header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
                 }.build()).executeAsync().use { response ->
@@ -1361,10 +1361,10 @@ class PlayerRepository(
         }
     }
 
-    suspend fun loadGlobalFFZEmotesResponse(networkLibrary: String?): String = withContext(Dispatchers.IO) {
+    suspend fun loadGlobalFFZEmotesResponse(networkLibrary: String?, proxyClient: OkHttpClient? = null): String = withContext(Dispatchers.IO) {
         val url = "https://api.frankerfacez.com/v1/set/global"
         when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
+            proxyClient == null && networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
                 val response = suspendCancellableCoroutine { continuation ->
                     val timeout = NetworkUtils.HttpEngineTimeout()
                     val request = httpEngine.value!!.newUrlRequestBuilder(
@@ -1383,7 +1383,7 @@ class PlayerRepository(
                 }
                 response.body.decodeToString()
             }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
+            proxyClient == null && networkLibrary == C.CRONET && cronetEngine.value != null -> {
                 val response = suspendCancellableCoroutine { continuation ->
                     val timeout = NetworkUtils.CronetTimeout()
                     val request = cronetEngine.value!!.newUrlRequestBuilder(
@@ -1403,7 +1403,7 @@ class PlayerRepository(
                 response.body.decodeToString()
             }
             else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
+                (proxyClient ?: okHttpClient.value).newCall(Request.Builder().apply {
                     url(url)
                     header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
                 }.build()).executeAsync().use { response ->
@@ -1420,10 +1420,10 @@ class PlayerRepository(
         }
     }
 
-    suspend fun loadFFZEmotesResponse(networkLibrary: String?, channelId: String): String = withContext(Dispatchers.IO) {
+    suspend fun loadFFZEmotesResponse(networkLibrary: String?, channelId: String, proxyClient: OkHttpClient? = null): String = withContext(Dispatchers.IO) {
         val url = "https://api.frankerfacez.com/v1/room/id/${channelId}"
         when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
+            proxyClient == null && networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
                 val response = suspendCancellableCoroutine { continuation ->
                     val timeout = NetworkUtils.HttpEngineTimeout()
                     val request = httpEngine.value!!.newUrlRequestBuilder(
@@ -1442,7 +1442,7 @@ class PlayerRepository(
                 }
                 response.body.decodeToString()
             }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
+            proxyClient == null && networkLibrary == C.CRONET && cronetEngine.value != null -> {
                 val response = suspendCancellableCoroutine { continuation ->
                     val timeout = NetworkUtils.CronetTimeout()
                     val request = cronetEngine.value!!.newUrlRequestBuilder(
@@ -1462,7 +1462,7 @@ class PlayerRepository(
                 response.body.decodeToString()
             }
             else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
+                (proxyClient ?: okHttpClient.value).newCall(Request.Builder().apply {
                     url(url)
                     header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
                 }.build()).executeAsync().use { response ->

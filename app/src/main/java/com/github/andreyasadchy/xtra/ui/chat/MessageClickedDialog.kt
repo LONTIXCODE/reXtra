@@ -20,7 +20,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import coil3.imageLoader
+import com.github.andreyasadchy.xtra.util.chat.chatImageLoader
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import coil3.request.target
@@ -295,7 +295,7 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
             if (user.bannerImageURL != null) {
                 userLayout.visibility = View.VISIBLE
                 bannerImage.visibility = View.VISIBLE
-                requireContext().imageLoader.enqueue(
+                requireContext().chatImageLoader().enqueue(
                     ImageRequest.Builder(requireContext()).apply {
                         data(user.bannerImageURL)
                         crossfade(true)
@@ -308,7 +308,7 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
             if (user.profileImage != null) {
                 userLayout.visibility = View.VISIBLE
                 userImage.visibility = View.VISIBLE
-                requireContext().imageLoader.enqueue(
+                requireContext().chatImageLoader().enqueue(
                     ImageRequest.Builder(requireContext()).apply {
                         data(user.profileImage)
                         if (requireContext().prefs().getBoolean(C.UI_ROUND_USER_IMAGE, true)) {

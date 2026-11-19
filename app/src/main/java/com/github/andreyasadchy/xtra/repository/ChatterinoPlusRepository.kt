@@ -3,6 +3,7 @@ package com.github.andreyasadchy.xtra.repository
 import android.os.SystemClock
 import com.github.andreyasadchy.xtra.model.chat.NamePaint
 import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
+import com.github.andreyasadchy.xtra.util.chat.ChatMediaNetwork
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,7 +17,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONObject
 import kotlin.math.roundToInt
 
-class ChatterinoPlusRepository(baseClient: Lazy<OkHttpClient>) {
+class ChatterinoPlusRepository(baseClient: Lazy<OkHttpClient>, private val mediaNetwork: ChatMediaNetwork) {
     private val httpClient by lazy {
         baseClient.value.newBuilder().apply { interceptors().clear() }.followRedirects(false).build()
     }
@@ -25,16 +26,21 @@ class ChatterinoPlusRepository(baseClient: Lazy<OkHttpClient>) {
     val cosmetics = roster.asStateFlow()
     private var nextRefresh = 0L
     private var etag: String? = null
+    private var previousProxy: OkHttpClient? = null
 
     suspend fun refresh() = withContext(Dispatchers.IO) {
         mutex.withLock {
-            if (SystemClock.elapsedRealtime() < nextRefresh) return@withLock
-            nextRefresh = SystemClock.elapsedRealtime() + 60_000L
             try {
+                val proxy = mediaNetwork.proxyClient()
+                if (proxy !== previousProxy) nextRefresh = 0L
+                if (SystemClock.elapsedRealtime() < nextRefresh) return@withLock
+                previousProxy = proxy
+                nextRefresh = SystemClock.elapsedRealtime() + 60_000L
+                val client = proxy?.newBuilder()?.followRedirects(false)?.build() ?: httpClient
                 val request = Request.Builder().url(ROSTER_URL).apply {
                     etag?.let { header("If-None-Match", it) }
                 }.build()
-                httpClient.newCall(request).executeAsync().use { response ->
+                client.newCall(request).executeAsync().use { response ->
                     when {
                         response.code == 304 -> Unit
                         response.isSuccessful -> {
@@ -74,6 +80,7 @@ class ChatterinoPlusRepository(baseClient: Lazy<OkHttpClient>) {
 
     companion object {
         private const val ROSTER_URL = "https://chat.eblo.id/api/v1/plus/roster"
+        private val mediaHosts = setOf("chat.eblo.id", "ws.chat.eblo.id")
 
         internal fun parseRoster(json: JSONObject): Roster {
             val users = json.getJSONArray("users")
@@ -174,7 +181,7 @@ class ChatterinoPlusRepository(baseClient: Lazy<OkHttpClient>) {
         }
 
         private fun imageUrl(value: String): String? = value.toHttpUrlOrNull()
-            ?.takeIf { it.isHttps && it.host == "chat.eblo.id" && it.port == 443 && it.username.isEmpty() && it.password.isEmpty() }
+            ?.takeIf { it.isHttps && it.host in mediaHosts && it.port == 443 && it.username.isEmpty() && it.password.isEmpty() }
             ?.takeIf { it.encodedPath.startsWith("/chatterino/media/") || it.encodedPath.startsWith("/chat/static/") }
             ?.toString()
     }

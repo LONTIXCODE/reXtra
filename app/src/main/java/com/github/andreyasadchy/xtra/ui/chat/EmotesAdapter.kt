@@ -6,7 +6,7 @@ import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import coil3.imageLoader
+import com.github.andreyasadchy.xtra.util.chat.chatImageLoader
 import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
@@ -14,7 +14,7 @@ import coil3.request.crossfade
 import coil3.request.target
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.bumptech.glide.load.model.GlideUrl
+import com.github.andreyasadchy.xtra.util.chat.chatGlideUrl
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.github.andreyasadchy.xtra.BuildConfig
 import com.github.andreyasadchy.xtra.databinding.FragmentEmotesListItemBinding
@@ -53,7 +53,7 @@ class EmotesAdapter(
             with(binding) {
                 if (item != null) {
                     if (imageLibrary == "0" || (imageLibrary == "1" && !item.format.equals("webp", true))) {
-                        fragment.requireContext().imageLoader.enqueue(
+                        fragment.requireContext().chatImageLoader().enqueue(
                             ImageRequest.Builder(fragment.requireContext()).apply {
                                 data(
                                     when (emoteQuality) {
@@ -81,9 +81,7 @@ class EmotesAdapter(
                                     "2" -> item.url2x ?: item.url1x
                                     else -> item.url1x
                                 }.let {
-                                    if (item.thirdParty) {
-                                        GlideUrl(it) { mapOf("User-Agent" to "Xtra/" + BuildConfig.VERSION_NAME) }
-                                    } else it
+                                    chatGlideUrl(it, item.thirdParty)
                                 }
                             )
                             .diskCacheStrategy(DiskCacheStrategy.DATA)

@@ -19,13 +19,13 @@ import android.view.View
 import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
 import coil3.asDrawable
-import coil3.imageLoader
+import com.github.andreyasadchy.xtra.util.chat.chatImageLoader
 import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.bumptech.glide.load.model.GlideUrl
+import com.github.andreyasadchy.xtra.util.chat.chatGlideUrl
 import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
 import com.github.andreyasadchy.xtra.BuildConfig
@@ -753,7 +753,7 @@ object ChatAdapterUtils {
     fun loadImages(fragment: Fragment, itemView: View, bind: (SpannableStringBuilder) -> Unit, images: List<Image>, imagePaint: NamePaint?, userName: String?, userNameStartIndex: Int?, backgroundColor: Int, imageLibrary: String?, builder: SpannableStringBuilder, translated: Boolean, emoteSize: Int, badgeSize: Int, gifSize: Int, emoteQuality: String, animateGifs: Boolean, enableOverlayEmotes: Boolean, chatMessage: ChatMessage, savedColors: HashMap<String, Int>, useReadableColors: Boolean, isLightTheme: Boolean, showLanguageDownloadDialog: (ChatMessage, String) -> Unit, hideErrors: Boolean) {
         if (imagePaint != null) {
             if (imageLibrary == "0") {
-                fragment.requireContext().imageLoader.enqueue(
+                fragment.requireContext().chatImageLoader().enqueue(
                     ImageRequest.Builder(fragment.requireContext()).apply {
                         data(imagePaint.imageUrl)
                         httpHeaders(NetworkHeaders.Builder().apply {
@@ -805,7 +805,7 @@ object ChatAdapterUtils {
                 )
             } else {
                 Glide.with(fragment)
-                    .load(GlideUrl(imagePaint.imageUrl) { mapOf("User-Agent" to "Xtra/" + BuildConfig.VERSION_NAME) })
+                    .load(chatGlideUrl(imagePaint.imageUrl, thirdParty = true))
                     .diskCacheStrategy(DiskCacheStrategy.DATA)
                     .into(object : CustomTarget<Drawable>() {
                         override fun onResourceReady(resource: Drawable, transition: Transition<in Drawable>?) {
@@ -947,7 +947,7 @@ object ChatAdapterUtils {
     }
 
     private fun loadCoil(fragment: Fragment, image: Image, emoteQuality: String, onLoaded: (Drawable) -> Unit) {
-        fragment.requireContext().imageLoader.enqueue(
+        fragment.requireContext().chatImageLoader().enqueue(
             ImageRequest.Builder(fragment.requireContext()).apply {
                 data(image.localData ?: when (emoteQuality) {
                     "4" -> image.url4x ?: image.url3x ?: image.url2x ?: image.url1x
@@ -977,9 +977,7 @@ object ChatAdapterUtils {
                 "2" -> image.url2x ?: image.url1x
                 else -> image.url1x
             }.let {
-                if (image.thirdParty) {
-                    GlideUrl(it) { mapOf("User-Agent" to "Xtra/" + BuildConfig.VERSION_NAME) }
-                } else it
+                chatGlideUrl(it, image.thirdParty)
             })
             .diskCacheStrategy(DiskCacheStrategy.DATA)
             .into(object : CustomTarget<Drawable>() {

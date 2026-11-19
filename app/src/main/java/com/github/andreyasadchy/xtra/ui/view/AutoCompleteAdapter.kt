@@ -7,7 +7,7 @@ import android.widget.ArrayAdapter
 import android.widget.Filter
 import android.widget.ImageView
 import android.widget.TextView
-import coil3.imageLoader
+import com.github.andreyasadchy.xtra.util.chat.chatImageLoader
 import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
@@ -15,7 +15,7 @@ import coil3.request.crossfade
 import coil3.request.target
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.bumptech.glide.load.model.GlideUrl
+import com.github.andreyasadchy.xtra.util.chat.chatGlideUrl
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.github.andreyasadchy.xtra.BuildConfig
 import com.github.andreyasadchy.xtra.R
@@ -44,7 +44,7 @@ class AutoCompleteAdapter<T>(
                 view.findViewById<ImageView>(R.id.image)?.let {
                     it.visibility = View.VISIBLE
                     if (imageLibrary == "0" || (imageLibrary == "1" && !item.format.equals("webp", true))) {
-                        context.imageLoader.enqueue(
+                        context.chatImageLoader().enqueue(
                             ImageRequest.Builder(context).apply {
                                 data(
                                     when (emoteQuality) {
@@ -72,9 +72,7 @@ class AutoCompleteAdapter<T>(
                                     "2" -> item.url2x ?: item.url1x
                                     else -> item.url1x
                                 }.let {
-                                    if (item.thirdParty) {
-                                        GlideUrl(it) { mapOf("User-Agent" to "Xtra/" + BuildConfig.VERSION_NAME) }
-                                    } else it
+                                    chatGlideUrl(it, item.thirdParty)
                                 }
                             )
                             .diskCacheStrategy(DiskCacheStrategy.DATA)

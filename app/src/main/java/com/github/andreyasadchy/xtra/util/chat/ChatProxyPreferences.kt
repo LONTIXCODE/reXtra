@@ -19,14 +19,30 @@ object ChatProxyPreferences {
             configuration(context) ?: throw IOException(context.getString(R.string.chat_proxy_invalid))
         } else null
 
-    fun configuration(context: Context): ChatProxy? {
+    fun configuration(context: Context): ChatProxy? = settings(context).create()
+
+    internal fun isEnabled(context: Context): Boolean = context.prefs().getBoolean(ENABLED, false)
+
+    internal fun settings(context: Context): Settings {
         val preferences = context.prefs()
-        return ChatProxy.parse(
+        return Settings(
             preferences.getString(TYPE, "SOCKS5"),
             preferences.getString(HOST, null),
             preferences.getString(PORT, null),
             preferences.getString(USERNAME, null),
             context.tokenPrefs().getString(PASSWORD, null),
         )
+    }
+
+    internal data class Settings(
+        private val type: String?,
+        private val host: String?,
+        private val port: String?,
+        private val username: String?,
+        private val password: String?,
+    ) {
+        fun create(): ChatProxy? = ChatProxy.parse(type, host, port, username, password)
+
+        override fun toString() = "ChatProxySettings"
     }
 }

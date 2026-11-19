@@ -94,7 +94,10 @@ class XtraModule(application: Application) {
         Json { ignoreUnknownKeys = true }
     }
 
-    val chatterinoPlusRepository by lazy { ChatterinoPlusRepository(okHttpClient) }
+    val chatMediaNetwork by lazy {
+        com.github.andreyasadchy.xtra.util.chat.ChatMediaNetwork(application, okHttpClient)
+    }
+    val chatterinoPlusRepository by lazy { ChatterinoPlusRepository(okHttpClient, chatMediaNetwork) }
 
     val database by lazy {
         Room.databaseBuilder(application, AppDatabase::class.java, "database").apply {

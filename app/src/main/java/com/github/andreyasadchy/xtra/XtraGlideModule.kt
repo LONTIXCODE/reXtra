@@ -7,6 +7,7 @@ import com.bumptech.glide.annotation.GlideModule
 import com.bumptech.glide.integration.okhttp3.OkHttpUrlLoader
 import com.bumptech.glide.load.model.GlideUrl
 import com.bumptech.glide.module.AppGlideModule
+import com.github.andreyasadchy.xtra.util.chat.ChatGlideUrl
 import java.io.InputStream
 
 @GlideModule
@@ -17,6 +18,7 @@ class XtraGlideModule : AppGlideModule() {
     override fun registerComponents(context: Context, glide: Glide, registry: Registry) {
         val xtraModule = (context as XtraApp).xtraModule
         registry.replace(GlideUrl::class.java, InputStream::class.java, OkHttpUrlLoader.Factory(xtraModule.okHttpClient.value))
+        registry.append(ChatGlideUrl::class.java, InputStream::class.java, ChatGlideUrl.Factory(xtraModule.chatMediaNetwork.calls))
         super.registerComponents(context, glide, registry)
     }
 }

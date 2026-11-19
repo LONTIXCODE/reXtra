@@ -10,11 +10,11 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.BufferedReader
 import java.io.BufferedWriter
 import java.io.ByteArrayOutputStream
+import java.io.EOFException
+import java.io.IOException
 import java.io.InputStream
-import java.io.InputStreamReader
 import java.io.OutputStream
 import java.io.OutputStreamWriter
 import java.net.Socket
@@ -105,9 +105,9 @@ class WebSocket(
             socket?.close()
             ensureActive()
         }
-        inputStream = socket?.inputStream
+        val reader = requireNotNull(socket).getInputStream().buffered()
+        inputStream = reader
         outputStream = socket?.outputStream
-        val reader = BufferedReader(InputStreamReader(inputStream))
         val writer = BufferedWriter(OutputStreamWriter(outputStream))
         val key = Base64.encodeToString(Random.nextBytes(16), Base64.NO_WRAP)
         writer.write("GET /$path HTTP/1.1\r\n")
@@ -125,7 +125,7 @@ class WebSocket(
         useCompression = false
         messageByteArray = null
         var validated = false
-        var line = reader.readLine()
+        var line = reader.readUpgradeLine()
         if (!line.startsWith("HTTP/1.1 101", true)) {
             listener.onDisconnect(this@WebSocket, line)
             if (line.startsWith("HTTP/1.1 429", true)) {
@@ -135,8 +135,8 @@ class WebSocket(
                 return@withContext true
             }
         }
-        line = reader.readLine()
-        while (!line.isNullOrBlank()) {
+        line = reader.readUpgradeLine()
+        while (line.isNotBlank()) {
             when {
                 line.startsWith("Sec-WebSocket-Accept", true) -> {
                     val messageDigest = MessageDigest.getInstance("SHA-1")
@@ -152,7 +152,7 @@ class WebSocket(
                     } != null
                 }
             }
-            line = reader.readLine()
+            line = reader.readUpgradeLine()
         }
         if (!validated) {
             listener.onDisconnect(this@WebSocket, "")
@@ -163,6 +163,19 @@ class WebSocket(
         }
         listener.onConnect(this@WebSocket)
         return@withContext false
+    }
+
+    // The first frame can arrive with the upgrade response. Keep both in one buffer.
+    internal fun InputStream.readUpgradeLine(): String {
+        val line = ByteArrayOutputStream()
+        repeat(8192) {
+            when (val next = read()) {
+                -1 -> throw EOFException("WebSocket closed during HTTP upgrade")
+                10 -> return line.toByteArray().toString(Charsets.US_ASCII).removeSuffix("\r")
+                else -> line.write(next)
+            }
+        }
+        throw IOException("WebSocket upgrade header is too long")
     }
 
     private suspend fun startPingTimer() = withContext(Dispatchers.IO) {

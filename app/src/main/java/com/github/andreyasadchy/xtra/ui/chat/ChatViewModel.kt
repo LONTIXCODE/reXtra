@@ -40,6 +40,7 @@ import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.chat.ChatMediaNetwork
 import com.github.andreyasadchy.xtra.util.chat.ChatProxyPreferences
 import com.github.andreyasadchy.xtra.util.chat.ChatReadIRCSocket
 import com.github.andreyasadchy.xtra.util.chat.ChatReadWebSocket
@@ -89,6 +90,7 @@ class ChatViewModel(
     private val json: Json,
     private val okHttpClient: Lazy<OkHttpClient>,
     val chatterinoPlus: ChatterinoPlusRepository,
+    private val mediaNetwork: ChatMediaNetwork,
 ) : ViewModel() {
 
     val integrity = MutableSharedFlow<String?>()
@@ -291,7 +293,7 @@ class ChatViewModel(
             } else {
                 viewModelScope.launch {
                     val pair = try {
-                        playerRepository.loadGlobalSTVEmoteSetResponse(networkLibrary) to true
+                        playerRepository.loadGlobalSTVEmoteSetResponse(networkLibrary, mediaNetwork.proxyClient()) to true
                     } catch (e: Exception) {
                         try {
                             val compressedBytes = FileInputStream("${applicationContext.cacheDir}/emote_responses/global.stv").use {
@@ -353,7 +355,7 @@ class ChatViewModel(
                     var emotes: List<Emote>? = null
                     var online = false
                     try {
-                        val userResponse = playerRepository.loadSTVUserResponse(networkLibrary, channelId)
+                        val userResponse = playerRepository.loadSTVUserResponse(networkLibrary, channelId, mediaNetwork.proxyClient())
                         val user = playerRepository.loadSTVUser(userResponse, useWebp)
                         val userSetId = user.first
                         val userEmotes = user.second
@@ -364,7 +366,7 @@ class ChatViewModel(
                             online = true
                         } else {
                             if (!userSetId.isNullOrBlank()) {
-                                val emoteSetResponse = playerRepository.loadSTVEmoteSetResponse(networkLibrary, userSetId)
+                                val emoteSetResponse = playerRepository.loadSTVEmoteSetResponse(networkLibrary, userSetId, mediaNetwork.proxyClient())
                                 val emoteSet = playerRepository.loadSTVEmoteSet(emoteSetResponse, useWebp, false)
                                 response = emoteSetResponse
                                 setId = userSetId
@@ -468,7 +470,7 @@ class ChatViewModel(
             } else {
                 viewModelScope.launch {
                     val pair = try {
-                        playerRepository.loadGlobalBTTVEmotesResponse(networkLibrary) to true
+                        playerRepository.loadGlobalBTTVEmotesResponse(networkLibrary, mediaNetwork.proxyClient()) to true
                     } catch (e: Exception) {
                         try {
                             val compressedBytes = FileInputStream("${applicationContext.cacheDir}/emote_responses/global.bttv").use {
@@ -528,7 +530,7 @@ class ChatViewModel(
             if (!channelId.isNullOrBlank()) {
                 viewModelScope.launch {
                     val pair = try {
-                        playerRepository.loadBTTVEmotesResponse(networkLibrary, channelId) to true
+                        playerRepository.loadBTTVEmotesResponse(networkLibrary, channelId, mediaNetwork.proxyClient()) to true
                     } catch (e: Exception) {
                         try {
                             val compressedBytes = FileInputStream("${applicationContext.cacheDir}/emote_responses/${channelId}.bttv").use {
@@ -615,7 +617,7 @@ class ChatViewModel(
             } else {
                 viewModelScope.launch {
                     val pair = try {
-                        playerRepository.loadGlobalFFZEmotesResponse(networkLibrary) to true
+                        playerRepository.loadGlobalFFZEmotesResponse(networkLibrary, mediaNetwork.proxyClient()) to true
                     } catch (e: Exception) {
                         try {
                             val compressedBytes = FileInputStream("${applicationContext.cacheDir}/emote_responses/global.ffz").use {
@@ -673,7 +675,7 @@ class ChatViewModel(
             if (!channelId.isNullOrBlank()) {
                 viewModelScope.launch {
                     val pair = try {
-                        playerRepository.loadFFZEmotesResponse(networkLibrary, channelId) to true
+                        playerRepository.loadFFZEmotesResponse(networkLibrary, channelId, mediaNetwork.proxyClient()) to true
                     } catch (e: Exception) {
                         try {
                             val compressedBytes = FileInputStream("${applicationContext.cacheDir}/emote_responses/${channelId}.ffz").use {
@@ -1132,13 +1134,14 @@ class ChatViewModel(
             val useWebp = applicationContext.prefs().getBoolean(C.CHAT_USE_WEBP, true)
             stvEventApi = STVEventApiWebSocket(
                 channelId = channelId,
-                listener = STVEventApiListener(useWebp, showNamePaints, showSTVBadges, showPersonalEmotes, stvLiveUpdates, networkLibrary, isLoggedIn, accountId, channelId, showWebSocketDebugInfo)
+                listener = STVEventApiListener(useWebp, showNamePaints, showSTVBadges, showPersonalEmotes, stvLiveUpdates, networkLibrary, isLoggedIn, accountId, channelId, showWebSocketDebugInfo),
+                proxy = chatProxy,
             )
             stvEventApiJob = stvEventApi?.connect(viewModelScope)
             if (isLoggedIn && !accountId.isNullOrBlank()) {
                 viewModelScope.launch {
                     try {
-                        stvUserId = playerRepository.getSTVUser(networkLibrary, accountId).takeIf { !it.isNullOrBlank() }
+                        stvUserId = playerRepository.getSTVUser(networkLibrary, accountId, mediaNetwork.proxyClient()).takeIf { !it.isNullOrBlank() }
                     } catch (e: Exception) {
 
                     }
@@ -1955,7 +1958,7 @@ class ChatViewModel(
                 stvLastPresenceUpdate = System.currentTimeMillis()
                 viewModelScope.launch {
                     try {
-                        playerRepository.sendSTVPresence(networkLibrary, stvUserId, channelId, sessionId, self)
+                        playerRepository.sendSTVPresence(networkLibrary, stvUserId, channelId, sessionId, self, mediaNetwork.proxyClient())
                     } catch (e: Exception) {
 
                     }
@@ -3306,7 +3309,7 @@ class ChatViewModel(
             initializer {
                 val application = (this[APPLICATION_KEY] as XtraApp)
                 val xtraModule = application.xtraModule
-                ChatViewModel(application.applicationContext, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.playerRepository, xtraModule.json, xtraModule.okHttpClient, xtraModule.chatterinoPlusRepository)
+                ChatViewModel(application.applicationContext, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.playerRepository, xtraModule.json, xtraModule.okHttpClient, xtraModule.chatterinoPlusRepository, xtraModule.chatMediaNetwork)
             }
         }
     }

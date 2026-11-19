@@ -12,6 +12,7 @@ import org.json.JSONObject
 class STVEventApiWebSocket(
     private val channelId: String,
     private val listener: Listener,
+    private val proxy: ChatProxy? = null,
 ) {
     private var webSocket: WebSocket? = null
 
@@ -19,7 +20,8 @@ class STVEventApiWebSocket(
         webSocket = WebSocket(
             url = "wss://events.7tv.io/v3",
             listener = WebSocketListener(),
-            headers = mapOf("User-Agent" to "Xtra/" + BuildConfig.VERSION_NAME)
+            headers = mapOf("User-Agent" to "Xtra/" + BuildConfig.VERSION_NAME),
+            proxy = proxy,
         )
         webSocket?.coroutineScope = coroutineScope
         return coroutineScope.launch(Dispatchers.IO) {
