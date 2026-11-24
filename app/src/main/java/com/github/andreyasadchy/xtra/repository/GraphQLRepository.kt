@@ -107,6 +107,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -1479,9 +1484,13 @@ class GraphQLRepository(
                             id
                             communityPointsSettings {
                                 isEnabled
+                                image { url url2x url4x }
+                                defaultImage { url url2x url4x }
                                 customRewards @include(if: ${'$'}includeRewards) {
                                     id title prompt cost pricingType
                                     isEnabled isPaused isInStock isSubOnly isUserInputRequired cooldownExpiresAt
+                                    image { url url2x url4x }
+                                    defaultImage { url url2x url4x }
                                 }
                             }
                             self { communityPoints { balance } }
@@ -1527,6 +1536,93 @@ class GraphQLRepository(
             }
         }.toString()
         // A network failure may occur after Twitch processes the redemption.
+        val client = (proxyClient ?: okHttpClient.value).newBuilder()
+            .retryOnConnectionFailure(false)
+            .followRedirects(false)
+            .build()
+        return json.decodeFromString(sendPersistedQuery(C.OKHTTP, headers, body, client))
+    }
+
+    suspend fun scheduledMessageStream(
+        headers: Map<String, String>,
+        channelLogin: String,
+        channelId: String,
+        proxyClient: OkHttpClient?,
+    ): String? {
+        val body = buildJsonObject {
+            put("operationName", "RextraScheduledStream")
+            put("query", """
+                query RextraScheduledStream(${'$'}login: String!) {
+                    user(login: ${'$'}login) { id stream { id } }
+                }
+            """.trimIndent())
+            putJsonObject("variables") { put("login", channelLogin) }
+        }.toString()
+        val response: JsonObject = json.decodeFromString(sendPersistedQuery(C.OKHTTP, headers, body, proxyClient))
+        val user = (response["data"] as? JsonObject)?.get("user") as? JsonObject
+            ?: throw java.io.IOException("Missing stream owner")
+        if (response["errors"] != null || user["id"]?.jsonPrimitive?.contentOrNull != channelId) {
+            throw java.io.IOException("Could not verify the live stream")
+        }
+        val stream = user["stream"] ?: throw java.io.IOException("Missing stream status")
+        return if (stream == JsonNull) null else stream.jsonObject.getValue("id").jsonPrimitive.content
+    }
+
+    suspend fun loadChatParticipation(
+        headers: Map<String, String>,
+        channelLogin: String,
+        proxyClient: OkHttpClient?,
+    ): JsonObject {
+        val body = buildJsonObject {
+            put("operationName", "RextraChatParticipation")
+            put("query", """
+                query RextraChatParticipation(${'$'}login: String!) {
+                    currentUser { id }
+                    user(login: ${'$'}login) { channel { self { communityPoints { balance } } } }
+                }
+            """.trimIndent())
+            putJsonObject("variables") { put("login", channelLogin) }
+        }.toString()
+        return json.decodeFromString(sendPersistedQuery(C.OKHTTP, headers, body, proxyClient))
+    }
+
+    suspend fun submitChatParticipation(
+        headers: Map<String, String>,
+        viewerId: String,
+        eventId: String,
+        optionId: String,
+        stake: Int?,
+        proxyClient: OkHttpClient?,
+    ): JsonObject {
+        val operation = if (stake == null) "RextraVoteInPoll" else "RextraMakePrediction"
+        val body = buildJsonObject {
+            put("operationName", operation)
+            put("query", if (stake == null) """
+                mutation RextraVoteInPoll(${'$'}input: VoteInPollInput!) {
+                    voteInPoll(input: ${'$'}input) { error { code } voter { __typename } }
+                }
+            """.trimIndent() else """
+                mutation RextraMakePrediction(${'$'}input: MakePredictionInput!) {
+                    makePrediction(input: ${'$'}input) { error { code } prediction { __typename } }
+                }
+            """.trimIndent())
+            putJsonObject("variables") {
+                putJsonObject("input") {
+                    val transaction = java.util.UUID.randomUUID().toString()
+                    if (stake == null) {
+                        put("pollID", eventId)
+                        put("choiceID", optionId)
+                        put("userID", viewerId)
+                        put("voteID", transaction)
+                    } else {
+                        put("eventID", eventId)
+                        put("outcomeID", optionId)
+                        put("points", stake)
+                        put("transactionID", transaction)
+                    }
+                }
+            }
+        }.toString()
         val client = (proxyClient ?: okHttpClient.value).newBuilder()
             .retryOnConnectionFailure(false)
             .followRedirects(false)

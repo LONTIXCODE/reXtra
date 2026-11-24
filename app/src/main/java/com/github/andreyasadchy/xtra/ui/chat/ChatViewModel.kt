@@ -95,6 +95,7 @@ class ChatViewModel(
 
     val integrity = MutableSharedFlow<String?>()
     private val pointsBalance = MutableStateFlow<Int?>(null)
+    val channelPointsIcon = MutableStateFlow<String?>(null)
     val channelPointsBalance: StateFlow<Int?> = pointsBalance
     private val redemptionLock = Mutex()
     private var pointsRefresh: Job? = null
@@ -141,6 +142,13 @@ class ChatViewModel(
     val raidClicked = MutableStateFlow<Raid?>(null)
     var raidClosed = false
     val poll = MutableStateFlow<Poll?>(null)
+    var activePoll: Poll? = null
+        private set
+    var activePrediction: Prediction? = null
+        private set
+    private var autoPrediction: Job? = null
+    private var scheduledPredictionId: String? = null
+    private val chatParticipation = ChatParticipation(applicationContext, graphQLRepository, mediaNetwork)
     var pollClosed = false
     val pollSecondsLeft = MutableStateFlow<Int?>(null)
     var pollTimer: Timer? = null
@@ -1155,6 +1163,12 @@ class ChatViewModel(
         started = false
         pointsRefresh?.cancel()
         pointsRefresh = null
+        channelPointsIcon.value = null
+        autoPrediction?.cancel()
+        autoPrediction = null
+        scheduledPredictionId = null
+        activePoll = null
+        activePrediction = null
         val readJob = chatReadJob
         val writeJob = chatWriteJob
         val pointsJob = pubSubJob
@@ -1203,6 +1217,7 @@ class ChatViewModel(
             try {
                 val community = loadAuthenticatedRewards(channelLogin, includeRewards = false)
                 pointsBalance.value = community.channel?.self?.communityPoints?.balance
+                channelPointsIcon.value = community.channel?.communityPointsSettings?.imageUrl
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
@@ -1262,6 +1277,7 @@ class ChatViewModel(
         val settings = requireNotNull(channel.communityPointsSettings)
         val balance = requireNotNull(channel.self?.communityPoints?.balance)
         pointsBalance.value = balance
+        channelPointsIcon.value = settings.imageUrl
         val rewards = settings.customRewards.orEmpty().filterNotNull().filter {
             it.isEnabled && it.pricingType == "POINTS" && it.cost != null
         }.sortedBy { it.cost }
@@ -1703,6 +1719,7 @@ class ChatViewModel(
                     } else if (it.status == "COMPLETED" || it.status == "TERMINATED") {
                         pollClosed = false
                     }
+                    activePoll = it.takeIf { event -> event.status == "ACTIVE" && (event.remainingMilliseconds ?: 1) > 0 }
                     poll.value = it
                 }
             }
@@ -1738,6 +1755,8 @@ class ChatViewModel(
                     } else if (it.status == "LOCKED" || it.status == "CANCEL_PENDING" || it.status == "RESOLVE_PENDING") {
                         predictionClosed = false
                     }
+                    activePrediction = it.takeIf { event -> event.status == "ACTIVE" }
+                    scheduleAutoPrediction(channelLogin, channelId, accountId, it)
                     prediction.value = it
                 }
             }
@@ -2071,6 +2090,87 @@ class ChatViewModel(
         pollTimeoutJob = viewModelScope.launch {
             delay(20.seconds)
             hide()
+        }
+    }
+
+    internal fun autoPredictionRule(channelId: String): AutoPredictionRule? =
+        applicationContext.tokenPrefs().getString(C.USER_ID, null)?.let { chatParticipation.rule(it, channelId) }
+
+    internal fun setAutoPredictionRule(channelId: String, rule: AutoPredictionRule?) {
+        val accountId = applicationContext.tokenPrefs().getString(C.USER_ID, null) ?: return
+        chatParticipation.setRule(accountId, channelId, rule)
+        autoPrediction?.cancel()
+    }
+
+    suspend fun voteInPoll(login: String, pollId: String, optionId: String) =
+        chatParticipation.submit(login, pollId, isPrediction = false) {
+            val current = activePoll
+            if (current?.id != pollId || current.choices?.none { it.id == optionId } != false) null
+            else ChatParticipation.Entry(optionId)
+        }
+
+    suspend fun makePrediction(login: String, eventId: String, outcomeId: String, stake: Int): Boolean =
+        submitPrediction(login, eventId) { prediction, balance ->
+            if (stake in 1..balance && prediction.outcomes.orEmpty().any { it.id == outcomeId }) {
+                ChatParticipation.Entry(outcomeId, stake)
+            } else {
+                throw ChatParticipation.Failure(R.string.chat_prediction_invalid_stake)
+            }
+        }
+
+    private suspend fun submitPrediction(
+        login: String,
+        eventId: String,
+        select: (Prediction, Int) -> ChatParticipation.Entry?,
+    ): Boolean {
+        if (!redemptionLock.tryLock()) throw ChatParticipation.Failure(R.string.channel_points_busy)
+        try {
+            return chatParticipation.submit(login, eventId, isPrediction = true) { balance ->
+                val current = activePrediction
+                if (current?.id != eventId || (current.closesAt() ?: 0) <= System.currentTimeMillis() || balance == null) {
+                    null
+                } else select(current, balance)
+            }.also { submitted ->
+                if (submitted) pointsBalance.value = null
+            }
+        } finally {
+            redemptionLock.unlock()
+        }
+    }
+
+    private fun scheduleAutoPrediction(login: String, channelId: String?, account: String?, event: Prediction) {
+        val id = event.id ?: return
+        if (id == scheduledPredictionId) {
+            if (event.status != "ACTIVE") autoPrediction?.cancel()
+            return
+        }
+        scheduledPredictionId = id
+        autoPrediction?.cancel()
+        if (event.status != "ACTIVE" || channelId == null || account == null) return
+        val rule = chatParticipation.rule(account, channelId) ?: return
+        val remaining = (event.closesAt() ?: 0) - System.currentTimeMillis()
+        if (remaining < 3_000) return
+        autoPrediction = viewModelScope.launch {
+            delay((remaining - 12_000).coerceAtLeast(0))
+            try {
+                val submitted = submitPrediction(login, id) { latest, balance ->
+                    if (account != applicationContext.tokenPrefs().getString(C.USER_ID, null) ||
+                        rule != chatParticipation.rule(account, channelId)
+                    ) return@submitPrediction null
+                    val option = latest.popularOutcome()?.id ?: return@submitPrediction null
+                    val points = rule.points(balance)
+                    if (points == 0) null else ChatParticipation.Entry(option, points)
+                }
+                if (submitted) onMessage(ChatMessage(systemMsg = applicationContext.getString(R.string.chat_auto_prediction_sent)))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ChatParticipation.Failure) {
+                if (e.string != R.string.chat_vote_already_attempted) {
+                    onMessage(ChatMessage(systemMsg = applicationContext.getString(e.string)))
+                }
+            } catch (_: Exception) {
+                onMessage(ChatMessage(systemMsg = applicationContext.getString(R.string.chat_vote_unconfirmed)))
+            }
         }
     }
 

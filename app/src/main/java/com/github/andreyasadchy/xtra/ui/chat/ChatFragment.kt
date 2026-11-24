@@ -11,7 +11,12 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
+import android.widget.ArrayAdapter
+import android.widget.CheckBox
+import android.widget.EditText
+import android.widget.ListView
 import android.widget.LinearLayout
+import android.widget.Toast
 import android.widget.MultiAutoCompleteTextView
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
@@ -35,12 +40,18 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import com.github.andreyasadchy.xtra.util.chat.chatImageLoader
+import coil3.asDrawable
 import coil3.request.ImageRequest
+import coil3.request.SuccessResult
 import coil3.request.crossfade
 import coil3.request.target
 import coil3.request.transformations
 import coil3.transform.CircleCropTransformation
 import com.github.andreyasadchy.xtra.R
+import com.github.andreyasadchy.xtra.XtraApp
+import com.github.andreyasadchy.xtra.repository.HelixRepository
+import com.github.andreyasadchy.xtra.repository.RextraBadgeRepository
+import com.github.andreyasadchy.xtra.util.chat.StvImageCache
 import com.github.andreyasadchy.xtra.databinding.FragmentChatBinding
 import com.github.andreyasadchy.xtra.model.chat.ChatMessage
 import com.github.andreyasadchy.xtra.model.chat.Emote
@@ -65,6 +76,7 @@ import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.Translator
 import com.google.mlkit.nl.translate.TranslatorOptions
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
@@ -75,6 +87,8 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickListener, ReplyClickedDialog.OnButtonClickListener {
+
+    internal val chatChannelId: String? get() = arguments?.getString(KEY_CHANNEL_ID)
 
     private var _binding: FragmentChatBinding? = null
     private val binding get() = _binding!!
@@ -134,6 +148,25 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                     if (pointsAvailable && channelLogin != null) {
                         val locale = androidx.core.os.ConfigurationCompat.getLocales(resources.configuration)[0] ?: Locale.getDefault()
                         val compact = CompactDecimalFormat.getInstance(locale, CompactDecimalFormat.CompactStyle.SHORT)
+                        val defaultTint = channelPoints.iconTint
+                        viewLifecycleOwner.lifecycleScope.launch {
+                            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                                viewModel.channelPointsIcon.collectLatest { url ->
+                                    channelPoints.setIconResource(R.drawable.ic_channel_points)
+                                    channelPoints.iconTint = defaultTint
+                                    if (url != null) {
+                                        val context = requireContext()
+                                        val image = context.chatImageLoader().execute(
+                                            ImageRequest.Builder(context).data(url).size(56).build(),
+                                        ) as? SuccessResult
+                                        if (image != null) {
+                                            channelPoints.iconTint = null
+                                            channelPoints.icon = image.image.asDrawable(resources)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         channelPoints.setOnLongClickListener { button ->
                             PopupMenu(requireContext(), button).apply {
                                 menu.add(R.string.hide_channel_points).setOnMenuItemClickListener {
@@ -183,6 +216,18 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                                 while (isActive) {
                                     viewModel.chatterinoPlus.refresh()
                                     delay(60_000L)
+                                }
+                            }
+                        }
+                    }
+                    val registry = (requireContext().applicationContext as XtraApp).xtraModule.rextraBadges
+                    if (requireContext().prefs().getBoolean(RextraBadgeRepository.ENABLED, true)) {
+                        viewLifecycleOwner.lifecycleScope.launch {
+                            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                                launch { registry.assignments.collect { viewModel.reloadMessages.value = true } }
+                                while (isActive) {
+                                    registry.refresh()
+                                    delay(60_000)
                                 }
                             }
                         }
@@ -289,6 +334,45 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                             }
                         })
                     }
+                    chatTools.isVisible = true
+                    chatTools.setOnClickListener { anchor ->
+                        val context = requireContext()
+                        val cacheChannel = StvImageCache.channelId(channelId)
+                        if (cacheChannel == null) {
+                            showChatSearch()
+                        } else {
+                            val cache = (context.applicationContext as XtraApp).xtraModule.chatMediaNetwork.stvCache
+                            PopupMenu(context, anchor).apply {
+                                menu.add(R.string.chat_search).setOnMenuItemClickListener {
+                                    showChatSearch()
+                                    true
+                                }
+                                if (isLive && cacheChannel == context.tokenPrefs().getString(C.USER_ID, null)) {
+                                    menu.add(R.string.chat_banned_users).setOnMenuItemClickListener {
+                                        showBannedUsers(cacheChannel)
+                                        true
+                                    }
+                                }
+                                if (isLive && isLoggedIn) {
+                                    val rule = viewModel.autoPredictionRule(cacheChannel)
+                                    menu.add(if (rule == null) R.string.chat_auto_prediction else R.string.chat_auto_prediction_enabled)
+                                        .setOnMenuItemClickListener {
+                                            showAutoPrediction(cacheChannel)
+                                            true
+                                        }
+                                }
+                                val keepCache = cacheChannel in cache.excluded()
+                                menu.add(if (keepCache) R.string.stv_cache_unpin else R.string.stv_cache_pin)
+                                    .setOnMenuItemClickListener {
+                                        val current = cache.excluded()
+                                        val updated = if (keepCache) current - cacheChannel else current + cacheChannel
+                                        context.prefs().edit { putString(StvImageCache.EXCLUDED, updated.sorted().joinToString(",")) }
+                                        Toast.makeText(context, if (keepCache) R.string.stv_cache_unpin else R.string.stv_cache_pin, Toast.LENGTH_SHORT).show()
+                                        true
+                                    }
+                            }.show()
+                        }
+                    }
                     btnDown.setOnClickListener {
                         view.post {
                             val lastIndex = synchronized(viewModel.chatMessages) {
@@ -314,6 +398,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                             R.layout.auto_complete_emotes_list_item,
                             R.id.name,
                             viewModel.autoCompleteList,
+                            StvImageCache.channelId(channelId),
                         ).apply {
                             setNotifyOnChange(false)
                             editText.setAdapter(this)
@@ -565,6 +650,9 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                             }
                         }
                     }
+                    pollAction.setOnClickListener {
+                        channelLogin?.let { showPollVoting(it) }
+                    }
                     pollClose.setOnClickListener {
                         pollLayout.visibility = View.GONE
                         viewModel.pollSecondsLeft.value = null
@@ -575,6 +663,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                         repeatOnLifecycle(Lifecycle.State.STARTED) {
                             viewModel.poll.collectLatest { poll ->
                                 if (poll != null) {
+                                    pollAction.isVisible = isLoggedIn && viewModel.activePoll?.choices.orEmpty().any { it.id != null }
                                     if (!viewModel.pollClosed) {
                                         when (poll.status) {
                                             "ACTIVE" -> {
@@ -649,6 +738,9 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                             }
                         }
                     }
+                    predictionAction.setOnClickListener {
+                        channelLogin?.let { showPredictionStake(it) }
+                    }
                     predictionClose.setOnClickListener {
                         predictionLayout.visibility = View.GONE
                         viewModel.predictionSecondsLeft.value = null
@@ -659,6 +751,8 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                         repeatOnLifecycle(Lifecycle.State.STARTED) {
                             viewModel.prediction.collectLatest { prediction ->
                                 if (prediction != null) {
+                                    predictionAction.isVisible = isLoggedIn && prediction.id != null &&
+                                        viewModel.activePrediction?.outcomes.orEmpty().any { it.id != null }
                                     if (!viewModel.predictionClosed) {
                                         when (prediction.status) {
                                             "ACTIVE" -> {
@@ -1029,6 +1123,290 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
         binding.editText.text.append(emote.name).append(' ')
     }
 
+    private fun showPollVoting(login: String) {
+        val poll = viewModel.activePoll ?: return
+        val pollId = poll.id ?: return
+        val choices = poll.choices.orEmpty().filter { it.id != null && !it.title.isNullOrBlank() }
+        requireContext().getAlertDialogBuilder()
+            .setTitle(poll.title ?: getString(R.string.chat_poll_vote))
+            .setItems(choices.map { it.title.orEmpty() }.toTypedArray()) { _, index ->
+                val id = choices[index].id ?: return@setItems
+                runParticipation(R.string.chat_poll_voted) { viewModel.voteInPoll(login, pollId, id) }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showPredictionStake(login: String) {
+        val prediction = viewModel.activePrediction ?: return
+        val id = prediction.id ?: return
+        val choices = prediction.outcomes.orEmpty().filter { it.id != null && !it.title.isNullOrBlank() }
+        val context = requireContext()
+        context.getAlertDialogBuilder()
+            .setTitle(prediction.title ?: getString(R.string.chat_prediction_stake))
+            .setItems(choices.map { it.title.orEmpty() }.toTypedArray()) { _, index ->
+                val outcome = choices[index]
+                val outcomeId = outcome.id ?: return@setItems
+                val amount = numberField(R.string.chat_prediction_amount)
+                val form = participationForm().apply { addView(amount) }
+                val confirm = context.getAlertDialogBuilder()
+                    .setTitle(outcome.title)
+                    .setView(form)
+                    .setPositiveButton(R.string.chat_prediction_confirm, null)
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+                confirm.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                    val stake = amount.text.toString().toIntOrNull()?.takeIf { it > 0 }
+                    if (stake == null) {
+                        amount.error = getString(R.string.chat_prediction_invalid_stake)
+                    } else {
+                        confirm.dismiss()
+                        runParticipation(R.string.chat_prediction_sent) { viewModel.makePrediction(login, id, outcomeId, stake) }
+                    }
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun runParticipation(success: Int, submit: suspend () -> Boolean) {
+        val context = requireContext()
+        viewLifecycleOwner.lifecycleScope.launch {
+            val status = try {
+                if (submit()) success else R.string.chat_vote_ended
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ChatParticipation.Failure) {
+                e.string
+            } catch (_: Exception) {
+                R.string.chat_vote_unconfirmed
+            }
+            Toast.makeText(context, status, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun participationForm() = LinearLayout(requireContext()).apply {
+        orientation = LinearLayout.VERTICAL
+        val padding = (24 * resources.displayMetrics.density).roundToInt()
+        setPadding(padding, 0, padding, 0)
+    }
+
+    private fun numberField(label: Int) = EditText(requireContext()).apply {
+        setSingleLine()
+        inputType = android.text.InputType.TYPE_CLASS_NUMBER
+        setHint(label)
+    }
+
+    private fun showAutoPrediction(channelId: String) {
+        val context = requireContext()
+        if (TwitchApiHelper.getChannelPointsSessions(context).isEmpty()) {
+            Toast.makeText(context, R.string.channel_points_gql_required, Toast.LENGTH_LONG).show()
+            return
+        }
+        val existing = viewModel.autoPredictionRule(channelId)
+        val amount = numberField(R.string.chat_auto_prediction_percent_amount)
+        val cap = numberField(R.string.chat_auto_prediction_cap)
+        val percent = CheckBox(context).apply {
+            setText(R.string.chat_auto_prediction_percent)
+            setOnCheckedChangeListener { _, checked ->
+                amount.setHint(if (checked) R.string.chat_auto_prediction_percent_amount else R.string.chat_prediction_amount)
+            }
+            isChecked = existing?.percent ?: true
+        }
+        amount.setHint(if (percent.isChecked) R.string.chat_auto_prediction_percent_amount else R.string.chat_prediction_amount)
+        amount.setText((existing?.amount ?: 5).toString())
+        cap.setText((existing?.cap ?: 10_000).toString())
+        val form = participationForm().apply {
+            addView(percent)
+            addView(amount)
+            addView(cap)
+        }
+        val dialog = context.getAlertDialogBuilder()
+            .setTitle(R.string.chat_auto_prediction)
+            .setMessage(R.string.chat_auto_prediction_explanation)
+            .setView(form)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.chat_auto_prediction_enable, null)
+            .apply {
+                if (existing != null) setNeutralButton(R.string.chat_auto_stop) { _, _ ->
+                    viewModel.setAutoPredictionRule(channelId, null)
+                }
+            }.show()
+        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            val value = amount.text.toString().toIntOrNull()?.takeIf { it > 0 && (!percent.isChecked || it <= 100) }
+            val limit = cap.text.toString().toIntOrNull()?.takeIf { it > 0 }
+            if (value == null) amount.error = getString(R.string.chat_auto_prediction_invalid)
+            if (limit == null) cap.error = getString(R.string.chat_auto_prediction_invalid)
+            if (value != null && limit != null) {
+                viewModel.setAutoPredictionRule(channelId, AutoPredictionRule(percent.isChecked, value, limit))
+                dialog.dismiss()
+            }
+        }
+    }
+
+    private fun showBannedUsers(channelId: String) {
+        val context = requireContext()
+        val headers = TwitchApiHelper.getHelixHeaders(context)
+        val module = (context.applicationContext as XtraApp).xtraModule
+        val rows = ArrayAdapter<String>(context, android.R.layout.simple_list_item_1)
+        val list = ListView(context).apply { adapter = rows }
+        val statusText = TextView(context).apply {
+            setText(R.string.chat_banned_loading)
+            val padding = (20 * resources.displayMetrics.density).roundToInt()
+            setPadding(padding, 0, padding, 0)
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
+        val panel = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(statusText)
+            addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                (resources.displayMetrics.heightPixels * 0.45f).roundToInt()))
+        }
+        val users = mutableListOf<HelixRepository.BannedUser>()
+        val dialog = context.getAlertDialogBuilder()
+            .setTitle(R.string.chat_banned_users)
+            .setView(panel)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setNeutralButton(R.string.chat_banned_more, null)
+            .show()
+        val more = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL)
+        var cursor: String? = null
+        var job: kotlinx.coroutines.Job? = null
+
+        fun load() {
+            more.isEnabled = false
+            job = viewLifecycleOwner.lifecycleScope.launch {
+                val page = try {
+                    module.helixRepository.getBannedUsers(headers, channelId, cursor, module.chatMediaNetwork.proxyClient())
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    if (users.isEmpty()) statusText.setText(R.string.chat_banned_error)
+                    else Toast.makeText(context, R.string.chat_banned_error, Toast.LENGTH_SHORT).show()
+                    more.setText(R.string.chat_banned_retry)
+                    more.isVisible = true
+                    more.isEnabled = true
+                    return@launch
+                }
+                if (page == null) {
+                    statusText.setText(R.string.chat_banned_requires_helix)
+                    more.isVisible = false
+                } else if (page.users.isEmpty() && users.isEmpty()) {
+                    statusText.setText(R.string.chat_banned_empty)
+                    more.isVisible = false
+                } else {
+                    val combined = (users + page.users).distinctBy { it.id }
+                    users.clear()
+                    users.addAll(combined)
+                    rows.clear()
+                    rows.addAll(users.map { user ->
+                        val name = user.name.ifBlank { user.login }
+                        if (user.expiresAt == null) name else getString(R.string.chat_banned_with_timeout, name)
+                    })
+                    statusText.isGone = true
+                    cursor = page.cursor
+                    more.setText(R.string.chat_banned_more)
+                    more.isVisible = cursor != null
+                    more.isEnabled = true
+                }
+            }
+        }
+        if (headers[C.HEADER_TOKEN].isNullOrBlank()) {
+            statusText.setText(R.string.chat_banned_requires_helix)
+            more.isVisible = false
+            return
+        }
+        more.setOnClickListener { load() }
+        dialog.setOnDismissListener { job?.cancel() }
+        list.setOnItemClickListener { _, _, position, _ ->
+            val user = users.getOrNull(position) ?: return@setOnItemClickListener
+            val time = user.expiresAt?.let {
+                kotlin.time.Instant.parseOrNull(it)?.toEpochMilliseconds()
+            }
+            val status = time?.let { getString(R.string.chat_banned_until, DateUtils.formatDateTime(context, it, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME)) }
+                ?: getString(if (user.expiresAt == null) R.string.chat_banned_permanent else R.string.chat_banned_timeout)
+            context.getAlertDialogBuilder()
+                .setTitle(user.name.ifBlank { user.login })
+                .setMessage(listOf("@${user.login}", status, user.reason).filter { it.isNotBlank() }.joinToString("\n"))
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+        }
+        load()
+    }
+
+    private fun showChatSearch(initialQuery: String = "") {
+        val context = requireContext()
+        val panel = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            val padding = (20 * resources.displayMetrics.density).roundToInt()
+            setPadding(padding, 0, padding, 0)
+        }
+        val query = EditText(context).apply {
+            setSingleLine()
+            setHint(R.string.chat_search_hint)
+        }
+        val status = TextView(context).apply {
+            setText(R.string.chat_search_buffer)
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
+        val rows = ArrayAdapter<String>(context, android.R.layout.simple_list_item_1)
+        val results = ListView(context).apply { adapter = rows }
+        panel.addView(query)
+        panel.addView(status)
+        panel.addView(results, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            (resources.displayMetrics.heightPixels * 0.34f).roundToInt(),
+        ))
+        val snapshot = synchronized(viewModel.chatMessages) {
+            viewModel.chatMessages.toList()
+        }
+        var matches = emptyList<ChatMessage>()
+        val dialog = context.getAlertDialogBuilder()
+            .setTitle(R.string.chat_search)
+            .setView(panel)
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        query.addTextChangedListener { value ->
+            val term = value?.toString()?.trim().orEmpty()
+            val login = term.removePrefix("@")
+            matches = if (term.isEmpty()) emptyList() else snapshot.asReversed().asSequence().filter {
+                if (term.startsWith("@")) {
+                    login.isNotEmpty() && it.userLogin.equals(login, ignoreCase = true)
+                } else {
+                    it.message?.contains(term, ignoreCase = true) == true ||
+                        it.userLogin?.contains(term, ignoreCase = true) == true ||
+                        it.userName?.contains(term, ignoreCase = true) == true
+                }
+            }.take(100).toList()
+            rows.clear()
+            rows.addAll(matches.map { message ->
+                val name = message.userName ?: message.userLogin
+                val body = message.message.orEmpty().take(300)
+                if (name.isNullOrBlank()) body else "$name  $body"
+            })
+            status.setText(when {
+                term.isEmpty() -> R.string.chat_search_buffer
+                matches.isEmpty() -> R.string.chat_search_empty
+                else -> R.string.chat_search_jump
+            })
+        }
+        results.setOnItemClickListener { _, _, position, _ ->
+            val message = matches.getOrNull(position) ?: return@setOnItemClickListener
+            val (index, lastIndex) = synchronized(viewModel.chatMessages) {
+                viewModel.chatMessages.indexOf(message) to viewModel.chatMessages.lastIndex
+            }
+            if (index >= 0) {
+                binding.btnDown.isVisible = index < lastIndex
+                (binding.recyclerView.layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(index, 0)
+                dialog.dismiss()
+            } else {
+                Toast.makeText(context, R.string.chat_search_expired, Toast.LENGTH_SHORT).show()
+            }
+        }
+        dialog.show()
+        if (initialQuery.isNotBlank()) query.setText(initialQuery)
+    }
+
     private fun sendMessage(replyId: String? = null): Boolean {
         with(binding) {
             (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(editText.windowToken, 0)
@@ -1043,7 +1421,10 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                     false
                 }
             }
-            val text = editText.text.trim()
+            val text = editText.text.trim().toString()
+            if (replyId == null && text.takeWhile { !it.isWhitespace() }.equals("/msg", ignoreCase = true)) {
+                return handleScheduledMessage(text)
+            }
             editText.text.clear()
             return if (text.isNotEmpty()) {
                 viewModel.send(
@@ -1067,6 +1448,41 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
             } else {
                 false
             }
+        }
+    }
+
+    private fun handleScheduledMessage(command: String): Boolean {
+        val context = requireContext()
+        val schedule = when (val parsed = ScheduledChatCommand.parse(command)) {
+            ScheduledChatCommand.Stop -> {
+                val stopped = ScheduledChatMessageService.stop(context)
+                binding.editText.text.clear()
+                Toast.makeText(context, if (stopped) R.string.chat_auto_stopped else R.string.chat_auto_inactive, Toast.LENGTH_SHORT).show()
+                return true
+            }
+            is ScheduledChatCommand.Send -> parsed
+            null -> {
+                Toast.makeText(context, R.string.chat_auto_help, Toast.LENGTH_LONG).show()
+                return false
+            }
+        }
+        val channelId = StvImageCache.channelId(chatChannelId) ?: return false
+        val login = requireArguments().getString(KEY_CHANNEL_LOGIN) ?: return false
+        val accountId = context.tokenPrefs().getString(C.USER_ID, null)
+        if (accountId.isNullOrBlank()) {
+            Toast.makeText(context, R.string.channel_points_sign_in, Toast.LENGTH_LONG).show()
+            return false
+        }
+        return try {
+            ScheduledChatMessageService.start(context, channelId, login, accountId, arguments?.getString(KEY_STREAM_ID), schedule)
+            binding.editText.text.clear()
+            val status = schedule.count?.let { getString(R.string.chat_auto_count, login, it, schedule.intervalSeconds) }
+                ?: getString(R.string.chat_auto_running, login, schedule.intervalSeconds / 60)
+            Toast.makeText(context, status, Toast.LENGTH_LONG).show()
+            true
+        } catch (_: IllegalStateException) {
+            Toast.makeText(context, R.string.chat_auto_could_not_start, Toast.LENGTH_LONG).show()
+            false
         }
     }
 
@@ -1121,6 +1537,17 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
             }
         }
     }
+
+    override fun onMentionChatUser(login: String) {
+        if (!messagingEnabled) return
+        val input = binding.editText
+        if (input.text.isNotEmpty() && !input.text.last().isWhitespace()) input.append(" ")
+        input.append("@$login ")
+        input.requestFocus()
+        requireContext().getSystemService(InputMethodManager::class.java)?.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    override fun onSearchChatUser(login: String) = showChatSearch("@$login")
 
     override fun onCopyMessageClicked(message: String) {
         binding.editText.setText(message)

@@ -31,7 +31,19 @@ class ChannelRewardsResponse(
     class Self(val communityPoints: ChannelPointContextResponse.Points? = null)
 
     @Serializable
-    class Settings(val isEnabled: Boolean, val customRewards: List<Reward?>? = null)
+    class Settings(
+        val isEnabled: Boolean,
+        val customRewards: List<Reward?>? = null,
+        val image: Image? = null,
+        val defaultImage: Image? = null,
+    ) {
+        val imageUrl get() = image?.bestUrl ?: defaultImage?.bestUrl
+    }
+
+    @Serializable
+    class Image(val url: String? = null, val url2x: String? = null, val url4x: String? = null) {
+        val bestUrl get() = listOf(url4x, url2x, url).firstOrNull { it?.startsWith("https://") == true }
+    }
 
     @Serializable
     class Reward(
@@ -46,7 +58,11 @@ class ChannelRewardsResponse(
         val isSubOnly: Boolean = false,
         val isUserInputRequired: Boolean = false,
         val cooldownExpiresAt: String? = null,
-    )
+        val image: Image? = null,
+        val defaultImage: Image? = null,
+    ) {
+        val imageUrl get() = image?.bestUrl ?: defaultImage?.bestUrl
+    }
 }
 
 @Serializable

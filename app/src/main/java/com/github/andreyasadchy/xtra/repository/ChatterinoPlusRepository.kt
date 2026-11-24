@@ -73,13 +73,16 @@ class ChatterinoPlusRepository(baseClient: Lazy<OkHttpClient>, private val media
         fun find(id: String?, login: String?): Cosmetics? =
             if (id.isNullOrBlank()) byLogin[login?.lowercase()] else byId[id]
 
+        internal fun sampleBadgeUrl(): String? =
+            byId.values.firstNotNullOfOrNull { it.badge?.dark?.let { urls -> urls.one ?: urls.two ?: urls.four } }
+
         companion object {
             val EMPTY = Roster(emptyMap(), emptyMap())
         }
     }
 
     companion object {
-        private const val ROSTER_URL = "https://chat.eblo.id/api/v1/plus/roster"
+        internal const val ROSTER_URL = "https://chat.eblo.id/api/v1/plus/roster"
         private val mediaHosts = setOf("chat.eblo.id", "ws.chat.eblo.id")
 
         internal fun parseRoster(json: JSONObject): Roster {

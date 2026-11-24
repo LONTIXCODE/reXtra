@@ -8,8 +8,8 @@ import android.widget.Filter
 import android.widget.ImageView
 import android.widget.TextView
 import com.github.andreyasadchy.xtra.util.chat.chatImageLoader
-import coil3.network.NetworkHeaders
-import coil3.network.httpHeaders
+import com.github.andreyasadchy.xtra.util.chat.chatImageData
+import com.github.andreyasadchy.xtra.util.chat.StvImageCache
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import coil3.request.target
@@ -17,7 +17,6 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.github.andreyasadchy.xtra.util.chat.chatGlideUrl
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
-import com.github.andreyasadchy.xtra.BuildConfig
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.chat.Chatter
 import com.github.andreyasadchy.xtra.model.chat.Emote
@@ -29,7 +28,8 @@ class AutoCompleteAdapter<T>(
     context: Context,
     resource: Int,
     textViewResourceId: Int,
-    private val originalValues: MutableList<T?>
+    private val originalValues: MutableList<T?>,
+    private val channel: String? = null,
 ): ArrayAdapter<T?>(context, resource, textViewResourceId) {
 
     private var objects = originalValues
@@ -43,39 +43,24 @@ class AutoCompleteAdapter<T>(
             is Emote -> {
                 view.findViewById<ImageView>(R.id.image)?.let {
                     it.visibility = View.VISIBLE
+                    val url = when (emoteQuality) {
+                        "4" -> item.url4x ?: item.url3x ?: item.url2x ?: item.url1x
+                        "3" -> item.url3x ?: item.url2x ?: item.url1x
+                        "2" -> item.url2x ?: item.url1x
+                        else -> item.url1x
+                    }
                     if (imageLibrary == "0" || (imageLibrary == "1" && !item.format.equals("webp", true))) {
-                        context.chatImageLoader().enqueue(
+                        context.chatImageLoader(channel).enqueue(
                             ImageRequest.Builder(context).apply {
-                                data(
-                                    when (emoteQuality) {
-                                        "4" -> item.url4x ?: item.url3x ?: item.url2x ?: item.url1x
-                                        "3" -> item.url3x ?: item.url2x ?: item.url1x
-                                        "2" -> item.url2x ?: item.url1x
-                                        else -> item.url1x
-                                    }
-                                )
-                                if (item.thirdParty) {
-                                    httpHeaders(NetworkHeaders.Builder().apply {
-                                        add("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                                    }.build())
-                                }
+                                chatImageData(url, item.thirdParty, channel)
                                 crossfade(true)
                                 target(it)
                             }.build()
                         )
                     } else {
                         Glide.with(context)
-                            .load(
-                                when (emoteQuality) {
-                                    "4" -> item.url4x ?: item.url3x ?: item.url2x ?: item.url1x
-                                    "3" -> item.url3x ?: item.url2x ?: item.url1x
-                                    "2" -> item.url2x ?: item.url1x
-                                    else -> item.url1x
-                                }.let {
-                                    chatGlideUrl(it, item.thirdParty)
-                                }
-                            )
-                            .diskCacheStrategy(DiskCacheStrategy.DATA)
+                            .load(chatGlideUrl(url, item.thirdParty, channel))
+                            .diskCacheStrategy(if (channel != null && StvImageCache.applies(url)) DiskCacheStrategy.NONE else DiskCacheStrategy.DATA)
                             .transition(DrawableTransitionOptions.withCrossFade())
                             .into(it)
                     }

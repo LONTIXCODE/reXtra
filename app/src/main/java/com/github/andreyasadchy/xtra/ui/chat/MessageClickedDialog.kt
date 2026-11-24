@@ -13,6 +13,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.core.content.ContextCompat.getSystemService
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
@@ -51,6 +52,8 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
         fun onCreateMessageClickedChatAdapter(): MessageClickedChatAdapter?
         fun onReplyClicked(replyId: String?, userLogin: String?, userName: String?, message: String?)
         fun onCopyMessageClicked(message: String)
+        fun onMentionChatUser(login: String)
+        fun onSearchChatUser(login: String)
         fun onViewProfileClicked(id: String?, login: String?, name: String?, channelImage: String?)
         fun onTranslateMessageClicked(chatMessage: ChatMessage, languageTag: String?)
     }
@@ -231,6 +234,35 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
 
     private fun updateButtons(chatMessage: ChatMessage) {
         with(binding) {
+            userActions.isVisible = chatMessage.userId != null || chatMessage.userLogin != null
+            userActions.setOnClickListener { anchor ->
+                PopupMenu(requireContext(), anchor).apply {
+                    chatMessage.userLogin?.let { login ->
+                        if (requireArguments().getBoolean(KEY_MESSAGING)) {
+                            menu.add(R.string.chat_user_mention).setOnMenuItemClickListener {
+                                dismiss()
+                                listener.onMentionChatUser(login)
+                                true
+                            }
+                        }
+                        menu.add(R.string.chat_user_search).setOnMenuItemClickListener {
+                            dismiss()
+                            listener.onSearchChatUser(login)
+                            true
+                        }
+                        menu.add(R.string.chat_user_copy_login).setOnMenuItemClickListener {
+                            listener.onCopyMessageClicked(login)
+                            true
+                        }
+                    }
+                    chatMessage.userId?.let { id ->
+                        menu.add(R.string.chat_user_copy_id).setOnMenuItemClickListener {
+                            listener.onCopyMessageClicked(id)
+                            true
+                        }
+                    }
+                }.show()
+            }
             if (requireArguments().getBoolean(KEY_MESSAGING) && (!chatMessage.userId.isNullOrBlank() || !chatMessage.userLogin.isNullOrBlank())) {
                 if (!chatMessage.id.isNullOrBlank()) {
                     reply.visibility = View.VISIBLE

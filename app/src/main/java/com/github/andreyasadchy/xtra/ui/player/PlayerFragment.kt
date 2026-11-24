@@ -1013,6 +1013,9 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                     }
                     val setting = requireContext().prefs().getString(C.UI_FOLLOW_BUTTON, "0")?.toIntOrNull() ?: 0
                     if (requireContext().prefs().getBoolean(C.PLAYER_FOLLOW, false) && (setting == 0 || setting == 1)) {
+                        val localFollow = setting == 1 ||
+                            TwitchApiHelper.getGQLHeaders(requireContext(), true)[C.HEADER_TOKEN].isNullOrBlank() ||
+                            requireContext().tokenPrefs().getString(C.USER_ID, null) == playbackService?.channelId
                         follow.visibility = View.VISIBLE
                         follow.setOnClickListener {
                             showController(force = true)
@@ -1053,11 +1056,18 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                             repeatOnLifecycle(Lifecycle.State.STARTED) {
                                 viewModel.isFollowing.collectLatest {
                                     if (it != null) {
-                                        if (it) {
-                                            follow.setImageResource(R.drawable.baseline_favorite_black_24)
-                                        } else {
-                                            follow.setImageResource(R.drawable.baseline_favorite_border_black_24)
-                                        }
+                                        follow.setImageResource(when {
+                                            it && localFollow -> R.drawable.ic_follow_local
+                                            it -> R.drawable.baseline_favorite_black_24
+                                            else -> R.drawable.baseline_favorite_border_black_24
+                                        })
+                                        val label = getString(when {
+                                            it && localFollow -> R.string.follow_source_local
+                                            it -> R.string.follow_source_twitch
+                                            else -> R.string.follow
+                                        })
+                                        follow.contentDescription = label
+                                        androidx.appcompat.widget.TooltipCompat.setTooltipText(follow, label)
                                     }
                                 }
                             }

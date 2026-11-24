@@ -139,6 +139,14 @@
             app:layout_constraintTop_toBottomOf="@id/messageLayout">
 
             <Button
+                android:id="@+id/userActions"
+                style="?attr/bottomSheetButtonStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/chat_user_actions"
+                android:visibility="gone" />
+
+            <Button
                 android:id="@+id/reply"
                 style="?attr/bottomSheetButtonStyle"
                 android:layout_width="match_parent"

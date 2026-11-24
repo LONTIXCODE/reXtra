@@ -356,6 +356,9 @@ class ChannelPagerFragment : BaseNetworkFragment(), Scrollable, FragmentHost, In
                 }
             }
             if (setting == 0 || setting == 1) {
+                val localFollow = setting == 1 ||
+                    TwitchApiHelper.getGQLHeaders(requireContext(), true)[C.HEADER_TOKEN].isNullOrBlank() ||
+                    requireContext().tokenPrefs().getString(C.USER_ID, null) == args.channelId
                 val followButton = toolbar.menu.findItem(R.id.followButton)
                 followButton?.isVisible = true
                 viewLifecycleOwner.lifecycleScope.launch {
@@ -364,8 +367,8 @@ class ChannelPagerFragment : BaseNetworkFragment(), Scrollable, FragmentHost, In
                             if (it != null) {
                                 followButton?.apply {
                                     if (it) {
-                                        icon = ContextCompat.getDrawable(requireContext(), R.drawable.baseline_favorite_black_24)
-                                        title = getString(R.string.unfollow)
+                                        icon = ContextCompat.getDrawable(requireContext(), if (localFollow) R.drawable.ic_follow_local else R.drawable.baseline_favorite_black_24)
+                                        title = getString(if (localFollow) R.string.follow_source_local else R.string.follow_source_twitch)
                                     } else {
                                         icon = ContextCompat.getDrawable(requireContext(), R.drawable.baseline_favorite_border_black_24)
                                         title = getString(R.string.follow)

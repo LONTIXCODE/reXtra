@@ -17,6 +17,27 @@ reXtra — форк Xtra для Android с прокси чата, баллами
 
 Исходники конкретной сборки доступны в архиве **Source code** на странице релиза. Изменения reXtra находятся в [ветке разработки](https://github.com/LONTIXCODE/reXtra/tree/chat-proxy-points-chatterino-plus).
 
+## Автосообщения в чате
+
+- `/msg 5 Текст` отправляет сообщение раз в 5 минут до конца текущего эфира.
+- `/msg x100 30 Текст` выполняет 100 попыток отправки с интервалом 30 секунд. Первая попытка проходит через 30 секунд.
+- `/msg stop` и кнопка в уведомлении останавливают текущую отправку. Новая команда заменяет предыдущую.
+
+Android может задерживать фоновую сеть в режиме Doze. Если Twitch отклонит сообщение, приложение пропустит эту попытку.
+
+## Значки reXtra
+
+Чтобы выдать значок, загрузите PNG в папку [CDN/badges](https://github.com/LONTIXCODE/.github/tree/main/CDN/badges) и добавьте в [badges.json](https://github.com/LONTIXCODE/.github/blob/main/CDN/badges/badges.json) Twitch ID и имя файла.
+
+```json
+{
+  "895421134": "badge1.png",
+  "123456789": "member.png"
+}
+```
+
+reXtra читает этот реестр по умолчанию и проверяет изменения каждые две минуты, пока открыт чат. Свой HTTPS-реестр можно указать в настройке чата **Реестр кастомных значков**.
+
 ## Лицензия
 
 reXtra основан на [Xtra](https://github.com/crackededed/Xtra) и распространяется под лицензией [GNU Affero General Public License v3.0](LICENSE).

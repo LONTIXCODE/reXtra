@@ -97,6 +97,7 @@ class XtraModule(application: Application) {
     val chatMediaNetwork by lazy {
         com.github.andreyasadchy.xtra.util.chat.ChatMediaNetwork(application, okHttpClient)
     }
+    val rextraBadges by lazy { com.github.andreyasadchy.xtra.repository.RextraBadgeRepository(application, chatMediaNetwork) }
     val chatterinoPlusRepository by lazy { ChatterinoPlusRepository(okHttpClient, chatMediaNetwork) }
 
     val database by lazy {

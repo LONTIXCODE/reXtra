@@ -13,8 +13,10 @@ import okhttp3.OkHttpClient
 import java.io.IOException
 
 class ChatMediaNetwork(private val context: Context, baseClient: Lazy<OkHttpClient>) {
+    internal val stvCache = StvImageCache(context)
     private val direct by lazy {
-        baseClient.value.newBuilder().apply { interceptors().clear() }.build()
+        baseClient.value.newBuilder().apply { interceptors().clear() }
+            .addInterceptor(stvCache).build()
     }
     private val invalidProxy by lazy {
         direct.newBuilder().addInterceptor { throw invalidConfiguration() }.build()
@@ -64,7 +66,7 @@ class ChatMediaNetwork(private val context: Context, baseClient: Lazy<OkHttpClie
     }
 }
 
-fun Context.chatImageLoader(): ImageLoader =
-    if (ChatProxyPreferences.isEnabled(this)) {
+fun Context.chatImageLoader(channelId: String? = null): ImageLoader =
+    if (ChatProxyPreferences.isEnabled(this) || channelId != null) {
         (applicationContext as XtraApp).xtraModule.chatMediaNetwork.imageLoader
     } else imageLoader

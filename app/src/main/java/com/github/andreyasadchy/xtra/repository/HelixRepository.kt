@@ -32,6 +32,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import okhttp3.Headers.Companion.toHeaders
+import org.json.JSONObject
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -391,6 +392,40 @@ class HelixRepository(
                     json.decodeFromString<VideosResponse>(response.body.string())
                 }
             }
+        }
+    }
+
+    data class BannedUser(val id: String, val login: String, val name: String, val reason: String, val expiresAt: String?)
+    data class BannedUsersPage(val users: List<BannedUser>, val cursor: String?)
+
+    suspend fun getBannedUsers(
+        headers: Map<String, String>,
+        broadcasterId: String,
+        after: String?,
+        chatProxyClient: OkHttpClient?,
+    ): BannedUsersPage? = withContext(Dispatchers.IO) {
+        val url = "https://api.twitch.tv/helix/moderation/banned".toUri().buildUpon().apply {
+            appendQueryParameter("broadcaster_id", broadcasterId)
+            appendQueryParameter("first", "50")
+            after?.let { appendQueryParameter("after", it) }
+        }.build().toString()
+        val request = Request.Builder().url(url).headers(headers.toHeaders()).build()
+        (chatProxyClient ?: okHttpClient.value).newCall(request).executeAsync().use { response ->
+            if (response.code == 401 || response.code == 403) return@use null
+            if (!response.isSuccessful) throw java.io.IOException("Helix HTTP ${response.code}")
+            val body = JSONObject(response.body.string())
+            val data = body.getJSONArray("data")
+            val users = (0 until data.length()).map { index ->
+                val user = data.getJSONObject(index)
+                BannedUser(
+                    user.getString("user_id"),
+                    user.optString("user_login", ""),
+                    user.optString("user_name", ""),
+                    user.optString("reason", ""),
+                    user.optString("expires_at", "").takeIf { it.isNotBlank() },
+                )
+            }
+            BannedUsersPage(users, body.optJSONObject("pagination")?.optString("cursor", "")?.takeIf { it.isNotBlank() })
         }
     }
 
@@ -1085,7 +1120,7 @@ class HelixRepository(
         }
     }
 
-    suspend fun sendMessage(networkLibrary: String?, headers: Map<String, String>, userId: String?, channelId: String?, message: String?, replyId: String?, chatProxyClient: OkHttpClient? = null): String? = withContext(Dispatchers.IO) {
+    suspend fun sendMessage(networkLibrary: String?, headers: Map<String, String>, userId: String?, channelId: String?, message: String?, replyId: String?, chatProxyClient: OkHttpClient? = null, verifyDelivery: Boolean = false): String? = withContext(Dispatchers.IO) {
         val url = "https://api.twitch.tv/helix/chat/messages"
         val body = buildJsonObject {
             put("broadcaster_id", channelId)
@@ -1094,7 +1129,7 @@ class HelixRepository(
             replyId?.let { put("reply_parent_message_id", it) }
         }.toString()
         when {
-            chatProxyClient == null && networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
+            !verifyDelivery && chatProxyClient == null && networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
                 val response = suspendCancellableCoroutine { continuation ->
                     val timeout = NetworkUtils.HttpEngineTimeout()
                     val request = httpEngine.value!!.newUrlRequestBuilder(
@@ -1119,7 +1154,7 @@ class HelixRepository(
                     response.body.decodeToString()
                 }
             }
-            chatProxyClient == null && networkLibrary == C.CRONET && cronetEngine.value != null -> {
+            !verifyDelivery && chatProxyClient == null && networkLibrary == C.CRONET && cronetEngine.value != null -> {
                 val response = suspendCancellableCoroutine { continuation ->
                     val timeout = NetworkUtils.CronetTimeout()
                     val request = cronetEngine.value!!.newUrlRequestBuilder(
@@ -1151,10 +1186,13 @@ class HelixRepository(
                     header("Content-Type", "application/json")
                     post(body.toRequestBody())
                 }.build()).executeAsync().use { response ->
-                    if (response.isSuccessful) {
-                        null
-                    } else {
+                    if (!response.isSuccessful) {
                         response.body.string()
+                    } else if (verifyDelivery) {
+                        val result = JSONObject(response.body.string()).getJSONArray("data").getJSONObject(0)
+                        if (result.optBoolean("is_sent")) null else "Twitch did not send the message"
+                    } else {
+                        null
                     }
                 }
             }

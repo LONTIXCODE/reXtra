@@ -59,6 +59,15 @@
             android:windowSoftInputMode="adjustResize" />
 
         <service
+            android:name=".ui.chat.ScheduledChatMessageService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-initiated periodic Twitch chat messages with a stop action" />
+        </service>
+
+        <service
             android:name=".ui.player.ExoPlayerService"
             android:foregroundServiceType="mediaPlayback" />
 

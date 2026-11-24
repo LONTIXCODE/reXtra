@@ -5,6 +5,8 @@ import android.annotation.SuppressLint
 import android.app.admin.DeviceAdminReceiver
 import android.app.admin.DevicePolicyManager
 import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -58,6 +60,12 @@ import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.github.andreyasadchy.xtra.R
+import com.github.andreyasadchy.xtra.XtraApp
+import com.github.andreyasadchy.xtra.repository.RextraBadgeRepository
+import com.github.andreyasadchy.xtra.util.chat.ChatMediaDiagnostics
+import com.github.andreyasadchy.xtra.util.chat.StvImageCache
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.github.andreyasadchy.xtra.SettingsNavGraphDirections
 import com.github.andreyasadchy.xtra.databinding.ActivitySettingsBinding
 import com.github.andreyasadchy.xtra.databinding.DialogUpdateDownloadBinding
@@ -929,6 +937,69 @@ class SettingsActivity : AppCompatActivity() {
 
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.chat_preferences, rootKey)
+            val stvCache = (requireContext().applicationContext as XtraApp).xtraModule.chatMediaNetwork.stvCache
+            findPreference<EditTextPreference>(StvImageCache.LIMIT)?.apply {
+                setOnBindEditTextListener { it.inputType = InputType.TYPE_CLASS_NUMBER }
+                setOnPreferenceChangeListener { _, value ->
+                    val limit = (value as? String)?.toIntOrNull()?.takeIf { it in 1..128 }
+                    if (limit == null) {
+                        Toast.makeText(requireContext(), R.string.stv_cache_limit_invalid, Toast.LENGTH_SHORT).show()
+                        false
+                    } else {
+                        lifecycleScope.launch { withContext(Dispatchers.IO) { stvCache.applyLimit(limit) } }
+                        true
+                    }
+                }
+            }
+            findPreference<EditTextPreference>(StvImageCache.EXCLUDED)?.apply {
+                setOnPreferenceChangeListener { _, value ->
+                    val valid = (value as String).split(',', '\n', ' ').all {
+                        it.isBlank() || StvImageCache.channelId(it) != null
+                    }
+                    if (!valid) Toast.makeText(requireContext(), R.string.stv_cache_excluded_summary, Toast.LENGTH_SHORT).show()
+                    valid
+                }
+            }
+            findPreference<Preference>(StvImageCache.CLEAR)?.setOnPreferenceClickListener {
+                val context = requireContext()
+                lifecycleScope.launch {
+                    val removed = withContext(Dispatchers.IO) { stvCache.clearUnprotected() }
+                    Toast.makeText(context, getString(R.string.stv_cache_removed, removed), Toast.LENGTH_SHORT).show()
+                }
+                true
+            }
+            findPreference<Preference>("chat_media_diagnostics")?.setOnPreferenceClickListener {
+                val context = requireContext()
+                val network = (context.applicationContext as XtraApp).xtraModule.chatMediaNetwork
+                val dialog = context.getAlertDialogBuilder()
+                    .setTitle(R.string.chat_check_title)
+                    .setMessage(R.string.chat_check_pending)
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .setNeutralButton(R.string.copy_clip, null)
+                    .show()
+                val copy = dialog.getButton(AlertDialog.BUTTON_NEUTRAL)
+                copy.isEnabled = false
+                val job = lifecycleScope.launch {
+                    val result = ChatMediaDiagnostics(context.applicationContext, network).run()
+                    dialog.setMessage(result)
+                    copy.isEnabled = true
+                    copy.setOnClickListener {
+                        context.getSystemService(ClipboardManager::class.java)
+                            ?.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.chat_check_title), result))
+                    }
+                }
+                dialog.setOnDismissListener { job.cancel() }
+                true
+            }
+            findPreference<EditTextPreference>(RextraBadgeRepository.SOURCE)?.apply {
+                setOnBindEditTextListener { it.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI }
+                setOnPreferenceChangeListener { _, value ->
+                    val address = (value as String).trim()
+                    val valid = address.isEmpty() || RextraBadgeRepository.httpsUrl(address) != null
+                    if (!valid) Toast.makeText(requireContext(), R.string.rextra_badges_invalid_url, Toast.LENGTH_SHORT).show()
+                    valid
+                }
+            }
             findPreference<Preference>("chat_proxy_local_network")?.apply {
                 isVisible = Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN &&
                     ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED

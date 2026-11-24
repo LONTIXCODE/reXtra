@@ -44,6 +44,7 @@ import com.github.andreyasadchy.xtra.ui.view.CenteredImageSpan
 import com.github.andreyasadchy.xtra.ui.view.NamePaintImageSpan
 import com.github.andreyasadchy.xtra.ui.view.NamePaintSpan
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.prefs
 import java.text.NumberFormat
 import java.util.Random
 import kotlin.math.floor
@@ -272,6 +273,25 @@ object ChatAdapterUtils {
                             start = builderIndex++,
                             end = builderIndex++
                         ))
+                    }
+                }
+                val registry = (context.applicationContext as? com.github.andreyasadchy.xtra.XtraApp)?.xtraModule?.rextraBadges
+                if (context.prefs().getBoolean(com.github.andreyasadchy.xtra.repository.RextraBadgeRepository.ENABLED, true)) {
+                    registry?.assignments?.value?.get(chatMessage.userId)?.forEach { badge ->
+                        builder.append(". ")
+                        val start = builderIndex
+                        builderIndex += 2
+                        builder.setSpan(ForegroundColorSpan(Color.TRANSPARENT), start, start + 1, SPAN_EXCLUSIVE_EXCLUSIVE)
+                        images.add(Image(url1x = badge.url, size = Image.IMAGE_SIZE_BADGE,
+                            thirdParty = true, start = start, end = start + 1))
+                        if (imageClick != null) {
+                            builder.setSpan(object : ClickableSpan() {
+                                override fun onClick(widget: View) {
+                                    imageClick(badge.url, badge.title, null, null, null, true, null)
+                                }
+                                override fun updateDrawState(ds: TextPaint) {}
+                            }, start, start + 1, SPAN_EXCLUSIVE_EXCLUSIVE)
+                        }
                     }
                 }
                 plusCosmetics?.badge?.let { badge ->
@@ -946,40 +966,29 @@ object ChatAdapterUtils {
         }
     }
 
+    private fun imageUrl(image: Image, quality: String): String? = when (quality) {
+        "4" -> image.url4x ?: image.url3x ?: image.url2x ?: image.url1x
+        "3" -> image.url3x ?: image.url2x ?: image.url1x
+        "2" -> image.url2x ?: image.url1x
+        else -> image.url1x
+    }
+
     private fun loadCoil(fragment: Fragment, image: Image, emoteQuality: String, onLoaded: (Drawable) -> Unit) {
-        fragment.requireContext().chatImageLoader().enqueue(
+        val channel = fragment.chatImageChannel()
+        fragment.requireContext().chatImageLoader(channel).enqueue(
             ImageRequest.Builder(fragment.requireContext()).apply {
-                data(image.localData ?: when (emoteQuality) {
-                    "4" -> image.url4x ?: image.url3x ?: image.url2x ?: image.url1x
-                    "3" -> image.url3x ?: image.url2x ?: image.url1x
-                    "2" -> image.url2x ?: image.url1x
-                    else -> image.url1x
-                })
-                if (image.thirdParty) {
-                    httpHeaders(NetworkHeaders.Builder().apply {
-                        add("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    }.build())
-                }
-                target(
-                    onSuccess = {
-                        onLoaded((it.asDrawable(fragment.resources)))
-                    },
-                )
+                chatImageData(image.localData ?: imageUrl(image, emoteQuality), image.thirdParty, channel)
+                target(onSuccess = { onLoaded(it.asDrawable(fragment.resources)) })
             }.build()
         )
     }
 
     private fun loadGlide(fragment: Fragment, image: Image, emoteQuality: String, onLoaded: (Drawable) -> Unit) {
+        val url = imageUrl(image, emoteQuality)
+        val channel = fragment.chatImageChannel()
         Glide.with(fragment)
-            .load(image.localData ?: when (emoteQuality) {
-                "4" -> image.url4x ?: image.url3x ?: image.url2x ?: image.url1x
-                "3" -> image.url3x ?: image.url2x ?: image.url1x
-                "2" -> image.url2x ?: image.url1x
-                else -> image.url1x
-            }.let {
-                chatGlideUrl(it, image.thirdParty)
-            })
-            .diskCacheStrategy(DiskCacheStrategy.DATA)
+            .load(image.localData ?: chatGlideUrl(url, image.thirdParty, channel))
+            .diskCacheStrategy(if (channel != null && StvImageCache.applies(url)) DiskCacheStrategy.NONE else DiskCacheStrategy.DATA)
             .into(object : CustomTarget<Drawable>() {
                 override fun onResourceReady(resource: Drawable, transition: Transition<in Drawable>?) {
                     onLoaded(resource)

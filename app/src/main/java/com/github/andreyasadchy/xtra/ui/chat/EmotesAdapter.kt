@@ -7,8 +7,9 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.github.andreyasadchy.xtra.util.chat.chatImageLoader
-import coil3.network.NetworkHeaders
-import coil3.network.httpHeaders
+import com.github.andreyasadchy.xtra.util.chat.chatImageData
+import com.github.andreyasadchy.xtra.util.chat.StvImageCache
+import com.github.andreyasadchy.xtra.util.chat.chatImageChannel
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import coil3.request.target
@@ -16,7 +17,6 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.github.andreyasadchy.xtra.util.chat.chatGlideUrl
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
-import com.github.andreyasadchy.xtra.BuildConfig
 import com.github.andreyasadchy.xtra.databinding.FragmentEmotesListItemBinding
 import com.github.andreyasadchy.xtra.model.chat.Emote
 
@@ -52,39 +52,25 @@ class EmotesAdapter(
         fun bind(item: Emote?) {
             with(binding) {
                 if (item != null) {
+                    val url = when (emoteQuality) {
+                        "4" -> item.url4x ?: item.url3x ?: item.url2x ?: item.url1x
+                        "3" -> item.url3x ?: item.url2x ?: item.url1x
+                        "2" -> item.url2x ?: item.url1x
+                        else -> item.url1x
+                    }
+                    val channel = fragment.chatImageChannel()
                     if (imageLibrary == "0" || (imageLibrary == "1" && !item.format.equals("webp", true))) {
-                        fragment.requireContext().chatImageLoader().enqueue(
+                        fragment.requireContext().chatImageLoader(channel).enqueue(
                             ImageRequest.Builder(fragment.requireContext()).apply {
-                                data(
-                                    when (emoteQuality) {
-                                        "4" -> item.url4x ?: item.url3x ?: item.url2x ?: item.url1x
-                                        "3" -> item.url3x ?: item.url2x ?: item.url1x
-                                        "2" -> item.url2x ?: item.url1x
-                                        else -> item.url1x
-                                    }
-                                )
-                                if (item.thirdParty) {
-                                    httpHeaders(NetworkHeaders.Builder().apply {
-                                        add("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                                    }.build())
-                                }
+                                chatImageData(url, item.thirdParty, channel)
                                 crossfade(true)
                                 target(root)
                             }.build()
                         )
                     } else {
                         Glide.with(fragment)
-                            .load(
-                                when (emoteQuality) {
-                                    "4" -> item.url4x ?: item.url3x ?: item.url2x ?: item.url1x
-                                    "3" -> item.url3x ?: item.url2x ?: item.url1x
-                                    "2" -> item.url2x ?: item.url1x
-                                    else -> item.url1x
-                                }.let {
-                                    chatGlideUrl(it, item.thirdParty)
-                                }
-                            )
-                            .diskCacheStrategy(DiskCacheStrategy.DATA)
+                            .load(chatGlideUrl(url, item.thirdParty, channel))
+                            .diskCacheStrategy(if (channel != null && StvImageCache.applies(url)) DiskCacheStrategy.NONE else DiskCacheStrategy.DATA)
                             .transition(DrawableTransitionOptions.withCrossFade())
                             .into(root)
                     }

@@ -3,6 +3,8 @@ package com.github.andreyasadchy.xtra.ui.chat
 import android.app.Dialog
 import android.os.Bundle
 import android.text.InputType
+import android.view.View
+import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -11,8 +13,11 @@ import androidx.core.view.isVisible
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
+import com.bumptech.glide.Glide
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.DialogChannelRewardsBinding
+import com.github.andreyasadchy.xtra.databinding.ChatRewardListItemBinding
+import com.github.andreyasadchy.xtra.util.chat.chatGlideUrl
 import com.github.andreyasadchy.xtra.model.gql.chat.ChannelRewardsResponse.Reward
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import kotlinx.coroutines.CancellationException
@@ -67,10 +72,24 @@ class ChannelRewardsDialog : DialogFragment() {
                 if (blocked == null) label to true else "$label\n${getString(blocked)}" to false
             }
             binding.rewards.adapter = object : ArrayAdapter<String>(
-                requireContext(), android.R.layout.simple_list_item_1, rows.map { it.first },
+                requireContext(), R.layout.chat_reward_list_item, R.id.rewardLabel, rows.map { it.first },
             ) {
                 override fun areAllItemsEnabled() = false
                 override fun isEnabled(position: Int) = rows[position].second
+
+                override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                    val row = if (convertView == null) ChatRewardListItemBinding.inflate(layoutInflater, parent, false)
+                        else ChatRewardListItemBinding.bind(convertView)
+                    row.rewardLabel.text = getItem(position)
+                    row.root.alpha = if (isEnabled(position)) 1f else 0.62f
+                    Glide.with(this@ChannelRewardsDialog)
+                        .load(chatGlideUrl(catalog.rewards[position].imageUrl, thirdParty = false))
+                        .placeholder(R.drawable.ic_channel_points)
+                        .error(R.drawable.ic_channel_points)
+                        .fallback(R.drawable.ic_channel_points)
+                        .into(row.rewardImage)
+                    return row.root
+                }
             }
             binding.rewards.setOnItemClickListener { _, _, position, _ ->
                 if (rows[position].second && operation?.isActive != true) {
@@ -157,7 +176,9 @@ class ChannelRewardsDialog : DialogFragment() {
             val container = FrameLayout(context)
             val padding = (24 * resources.displayMetrics.density).toInt()
             container.setPadding(padding, 0, padding, 0)
-            container.addView(this)
+            container.addView(this, FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            ))
             builder.setView(container)
         } else null
         confirmation = builder.create().apply {
