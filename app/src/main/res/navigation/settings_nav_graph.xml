@@ -33,6 +33,13 @@
         android:id="@+id/action_global_chatSettingsFragment"
         app:destination="@id/chatSettingsFragment" />
     <fragment
+        android:id="@+id/chatterinoPlusSettingsFragment"
+        android:name="com.github.andreyasadchy.xtra.ui.settings.SettingsActivity$ChatterinoPlusSettingsFragment"
+        android:label="Chatterino+" />
+    <action
+        android:id="@+id/action_global_chatterinoPlusSettingsFragment"
+        app:destination="@id/chatterinoPlusSettingsFragment" />
+    <fragment
         android:id="@+id/playerSettingsFragment"
         android:name="com.github.andreyasadchy.xtra.ui.settings.SettingsActivity$PlayerSettingsFragment"
         android:label="@string/player_settings" />

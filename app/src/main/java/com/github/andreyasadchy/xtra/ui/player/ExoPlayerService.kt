@@ -901,6 +901,23 @@ class ExoPlayerService : BasePlaybackService() {
         }
     }
 
+    private fun liveConfiguration(): MediaItem.LiveConfiguration {
+        val preferences = prefs()
+        val catchup = preferences.getBoolean(C.PLAYER_LIVE_CATCHUP, true)
+        return MediaItem.LiveConfiguration.Builder().apply {
+            val minimum = preferences.getString(C.PLAYER_LIVE_MIN_SPEED, "")?.toFloatOrNull()
+                ?.takeIf { it.isFinite() && it > 0 }
+            val maximum = preferences.getString(C.PLAYER_LIVE_MAX_SPEED, "")?.toFloatOrNull()
+                ?.takeIf { it.isFinite() && it > 0 }
+            val min = minimum ?: if (catchup || maximum == null) 1f else null
+            val max = maximum ?: if (catchup) 1.1f else 1f
+            min?.let { setMinPlaybackSpeed(minOf(it, max)) }
+            setMaxPlaybackSpeed(max)
+            preferences.getString(C.PLAYER_LIVE_TARGET_OFFSET, "2000")?.toLongOrNull()
+                ?.takeIf { it >= 0 }?.let { setTargetOffsetMs(it) }
+        }.build()
+    }
+
     private suspend fun loadStream(restorePauseState: Boolean = false, restart: Boolean = false) {
         channelLogin?.let { channelLogin ->
             var streamProxy = if (useStreamProxy) {
@@ -1208,11 +1225,7 @@ class ExoPlayerService : BasePlaybackService() {
                             MediaItem.Builder().apply {
                                 setUri(url.toUri())
                                 setMimeType(MimeTypes.APPLICATION_M3U8)
-                                setLiveConfiguration(MediaItem.LiveConfiguration.Builder().apply {
-                                    prefs().getString(C.PLAYER_LIVE_MIN_SPEED, "")?.toFloatOrNull()?.let { setMinPlaybackSpeed(it) }
-                                    prefs().getString(C.PLAYER_LIVE_MAX_SPEED, "")?.toFloatOrNull()?.let { setMaxPlaybackSpeed(it) }
-                                    prefs().getString(C.PLAYER_LIVE_TARGET_OFFSET, "2000")?.toLongOrNull()?.let { setTargetOffsetMs(it) }
-                                }.build())
+                                setLiveConfiguration(liveConfiguration())
                             }.build()
                         )
                     )
@@ -2045,11 +2058,7 @@ class ExoPlayerService : BasePlaybackService() {
                         MediaItem.Builder().apply {
                             setUri(url.toUri())
                             setMimeType(MimeTypes.APPLICATION_M3U8)
-                            setLiveConfiguration(MediaItem.LiveConfiguration.Builder().apply {
-                                prefs().getString(C.PLAYER_LIVE_MIN_SPEED, "")?.toFloatOrNull()?.let { setMinPlaybackSpeed(it) }
-                                prefs().getString(C.PLAYER_LIVE_MAX_SPEED, "")?.toFloatOrNull()?.let { setMaxPlaybackSpeed(it) }
-                                prefs().getString(C.PLAYER_LIVE_TARGET_OFFSET, "2000")?.toLongOrNull()?.let { setTargetOffsetMs(it) }
-                            }.build())
+                            setLiveConfiguration(liveConfiguration())
                         }.build()
                     )
                 )

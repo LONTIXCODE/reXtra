@@ -385,6 +385,11 @@ class SettingsActivity : AppCompatActivity() {
                 findNavController().navigate(SettingsNavGraphDirections.actionGlobalUiSettingsFragment())
                 true
             }
+            findPreference<Preference>("chatterino_plus_settings")?.setOnPreferenceClickListener {
+                requireActivity().findViewById<AppBarLayout>(R.id.appBar)?.setExpanded(true)
+                findNavController().navigate(SettingsNavGraphDirections.actionGlobalChatterinoPlusSettingsFragment())
+                true
+            }
             findPreference<Preference>("chat_settings")?.setOnPreferenceClickListener {
                 requireActivity().findViewById<AppBarLayout>(R.id.appBar)?.setExpanded(true)
                 findNavController().navigate(SettingsNavGraphDirections.actionGlobalChatSettingsFragment())
@@ -927,6 +932,21 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
             (requireActivity() as? SettingsActivity)?.getSelectedSearchItem()?.let { scrollToPreference(it) }
+        }
+    }
+
+    class ChatterinoPlusSettingsFragment : MaterialPreferenceFragment() {
+        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+            setPreferencesFromResource(R.xml.chatterino_plus_preferences, rootKey)
+            val profiles = (requireContext().applicationContext as XtraApp).xtraModule.chatterinoPlusProfiles
+            findPreference<Preference>("chat_plus_sign_out")?.apply {
+                isVisible = profiles.signedIn()
+                setOnPreferenceClickListener {
+                    profiles.disconnect()
+                    isVisible = false
+                    true
+                }
+            }
         }
     }
 
@@ -1694,6 +1714,7 @@ class SettingsActivity : AppCompatActivity() {
                 listOf(
                     Triple(R.xml.api_token_preferences, SettingsNavGraphDirections.actionGlobalApiTokenSettingsFragment(), getString(R.string.api_token_settings)),
                     Triple(R.xml.buffer_preferences, SettingsNavGraphDirections.actionGlobalBufferSettingsFragment(), getString(R.string.buffer_settings)),
+                    Triple(R.xml.chatterino_plus_preferences, SettingsNavGraphDirections.actionGlobalChatterinoPlusSettingsFragment(), "Chatterino+"),
                     Triple(R.xml.chat_preferences, SettingsNavGraphDirections.actionGlobalChatSettingsFragment(), getString(R.string.chat_settings)),
                     Triple(R.xml.debug_preferences, SettingsNavGraphDirections.actionGlobalDebugSettingsFragment(), getString(R.string.debug_settings)),
                     Triple(R.xml.download_preferences, SettingsNavGraphDirections.actionGlobalDownloadSettingsFragment(), getString(R.string.download_settings)),

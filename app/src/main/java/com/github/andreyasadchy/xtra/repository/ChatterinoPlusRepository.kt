@@ -183,7 +183,7 @@ class ChatterinoPlusRepository(baseClient: Lazy<OkHttpClient>, private val media
                 .takeIf { urls -> urls.one != null || urls.two != null || urls.four != null }
         }
 
-        private fun imageUrl(value: String): String? = value.toHttpUrlOrNull()
+        internal fun imageUrl(value: String): String? = value.toHttpUrlOrNull()
             ?.takeIf { it.isHttps && it.host in mediaHosts && it.port == 443 && it.username.isEmpty() && it.password.isEmpty() }
             ?.takeIf { it.encodedPath.startsWith("/chatterino/media/") || it.encodedPath.startsWith("/chat/static/") }
             ?.toString()

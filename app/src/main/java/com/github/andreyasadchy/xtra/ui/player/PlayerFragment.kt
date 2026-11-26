@@ -1878,6 +1878,8 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
 
     fun reloadEmotes() = chatFragment?.reloadEmotes()
 
+    internal fun chatMenuActions() = chatFragment?.playerMenuActions().orEmpty()
+
     fun isActive() = chatFragment?.isActive()
 
     fun disconnect() = chatFragment?.disconnect()

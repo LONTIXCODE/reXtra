@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -22,12 +23,16 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.github.andreyasadchy.xtra.util.chat.chatImageLoader
+import coil3.asDrawable
+import coil3.request.Disposable
 import coil3.request.ImageRequest
+import coil3.request.SuccessResult
 import coil3.request.crossfade
 import coil3.request.target
 import coil3.request.transformations
 import coil3.transform.CircleCropTransformation
 import com.github.andreyasadchy.xtra.R
+import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.databinding.DialogChatMessageClickBinding
 import com.github.andreyasadchy.xtra.model.chat.ChatMessage
 import com.github.andreyasadchy.xtra.model.ui.User
@@ -41,6 +46,8 @@ import com.github.andreyasadchy.xtra.util.prefs
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.mlkit.nl.translate.TranslateLanguage
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -74,6 +81,11 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
         }
     }
 
+    private var twitchAvatar: Disposable? = null
+    private var twitchBanner: Disposable? = null
+    private var plusProfileJob: Job? = null
+    private var plusProfileLogin: String? = null
+
     private var _binding: DialogChatMessageClickBinding? = null
     private val binding get() = _binding!!
     private val viewModel: MessageClickedViewModel by viewModels { MessageClickedViewModelFactory }
@@ -96,6 +108,12 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
     @SuppressLint("ClickableViewAccessibility")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        childFragmentManager.setFragmentResultListener(SharedBansDialog.RESULT, viewLifecycleOwner) { _, result ->
+            val id = result.getString(SharedBansDialog.USER_ID)
+            if (adapter?.selectedMessage?.userId == id) {
+                updateSharedBansBadge(result.getInt(SharedBansDialog.COUNT))
+            }
+        }
         val behavior = BottomSheetBehavior.from(view.parent as View)
         behavior.skipCollapsed = true
         behavior.state = BottomSheetBehavior.STATE_EXPANDED
@@ -234,6 +252,18 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
 
     private fun updateButtons(chatMessage: ChatMessage) {
         with(binding) {
+            val id = chatMessage.userId?.takeIf { it.matches(Regex("[0-9]{1,24}")) }
+            sharedBans.isVisible = id != null && requireContext().prefs().getBoolean(C.CHAT_PLUS_SHARED_BANS, true)
+            if (id != null && sharedBans.isVisible) {
+                val profiles = (requireContext().applicationContext as XtraApp).xtraModule.chatterinoPlusProfiles
+                updateSharedBansBadge(profiles.cached(id)?.count { !it.lifted })
+                sharedBans.setOnClickListener {
+                    if (childFragmentManager.isStateSaved || childFragmentManager.findFragmentByTag("sharedBans") != null) return@setOnClickListener
+                    val chat = parentFragment as? ChatFragment
+                    SharedBansDialog.newInstance(id, chatMessage.userName ?: chatMessage.userLogin,
+                        chat?.chatChannelId, chat?.chatChannelLogin).show(childFragmentManager, "sharedBans")
+                }
+            }
             userActions.isVisible = chatMessage.userId != null || chatMessage.userLogin != null
             userActions.setOnClickListener { anchor ->
                 PopupMenu(requireContext(), anchor).apply {
@@ -322,12 +352,84 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
         }
     }
 
+    private fun updateSharedBansBadge(count: Int?) {
+        val badge = binding.sharedBans
+        badge.text = if (count == null || count <= 0) getString(R.string.chat_plus_shared_bans)
+            else getString(R.string.chat_plus_shared_bans_count, count)
+        val tint = when {
+            count == null || count <= 0 -> badge.textColors.defaultColor
+            count == 1 -> Color.rgb(255, 213, 74)
+            count < 5 -> Color.rgb(240, 145, 58)
+            else -> Color.rgb(227, 93, 93)
+        }
+        badge.iconTint = ColorStateList.valueOf(tint)
+    }
+
+    private fun loadPlusProfile(user: User) {
+        val context = requireContext()
+        val avatars = context.prefs().getBoolean(C.CHAT_PLUS_AVATARS, false)
+        val banners = context.prefs().getBoolean(C.CHAT_PLUS_BANNERS, false)
+        val login = user.login ?: return
+        plusProfileJob?.cancel()
+        plusProfileLogin = login
+        if (!avatars && !banners) return
+        val profiles = (context.applicationContext as XtraApp).xtraModule.chatterinoPlusProfiles
+        plusProfileJob = viewLifecycleOwner.lifecycleScope.launch {
+            val images = try {
+                profiles.profileImages(login, user.id)
+            } catch (_: TimeoutCancellationException) {
+                return@launch
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                return@launch
+            }
+            val loader = context.chatImageLoader()
+            if (avatars && images.avatar != null) {
+                val image = loader.execute(ImageRequest.Builder(context).apply {
+                    data(images.avatar)
+                    size(256)
+                    if (context.prefs().getBoolean(C.UI_ROUND_USER_IMAGE, true)) transformations(CircleCropTransformation())
+                }.build()) as? SuccessResult
+                if (image != null && plusProfileLogin == login) setPlusAvatar(user, image)
+            }
+            if (banners && images.banner != null) {
+                val image = loader.execute(ImageRequest.Builder(context).data(images.banner).size(1024, 384).build()) as? SuccessResult
+                val viewBinding = _binding
+                if (image != null && plusProfileLogin == login && viewBinding != null) {
+                    viewBinding.userLayout.isVisible = true
+                    viewBinding.bannerImage.isVisible = true
+                    twitchBanner?.dispose()
+                    viewBinding.bannerImage.setImageDrawable(image.image.asDrawable(resources))
+                    for (text in listOf(viewBinding.userName, viewBinding.userCreated, viewBinding.userFollowed)) {
+                        text.setTextColor(Color.WHITE)
+                        text.setShadowLayer(4f, 0f, 0f, Color.BLACK)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun setPlusAvatar(user: User, image: SuccessResult) {
+        val viewBinding = _binding ?: return
+        viewBinding.userLayout.isVisible = true
+        viewBinding.userImage.isVisible = true
+        twitchAvatar?.dispose()
+        viewBinding.userImage.setImageDrawable(image.image.asDrawable(resources))
+        viewBinding.userImage.setOnClickListener {
+            listener.onViewProfileClicked(user.id, user.login, user.name, user.profileImage)
+            dismiss()
+        }
+    }
+
     private fun updateUserLayout(user: User) {
+        twitchAvatar?.dispose()
+        twitchBanner?.dispose()
         with(binding) {
             if (user.bannerImageURL != null) {
                 userLayout.visibility = View.VISIBLE
                 bannerImage.visibility = View.VISIBLE
-                requireContext().chatImageLoader().enqueue(
+                twitchBanner = requireContext().chatImageLoader().enqueue(
                     ImageRequest.Builder(requireContext()).apply {
                         data(user.bannerImageURL)
                         crossfade(true)
@@ -340,7 +442,7 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
             if (user.profileImage != null) {
                 userLayout.visibility = View.VISIBLE
                 userImage.visibility = View.VISIBLE
-                requireContext().chatImageLoader().enqueue(
+                twitchAvatar = requireContext().chatImageLoader().enqueue(
                     ImageRequest.Builder(requireContext()).apply {
                         data(user.profileImage)
                         if (requireContext().prefs().getBoolean(C.UI_ROUND_USER_IMAGE, true)) {
@@ -414,6 +516,7 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
                 viewProfile.visibility = View.VISIBLE
             }
         }
+        loadPlusProfile(user)
     }
 
     fun updateUserMessages(userId: String) {
@@ -516,6 +619,10 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
     }
 
     override fun onDestroyView() {
+        plusProfileJob?.cancel()
+        twitchAvatar?.dispose()
+        twitchBanner?.dispose()
+        plusProfileLogin = null
         super.onDestroyView()
         _binding = null
     }

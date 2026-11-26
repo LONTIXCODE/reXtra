@@ -138,6 +138,16 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/messageLayout">
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/sharedBans"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/chat_plus_shared_bans"
+                android:visibility="gone"
+                app:icon="@drawable/ic_shared_bans"
+                app:iconGravity="textStart" />
+
             <Button
                 android:id="@+id/userActions"
                 style="?attr/bottomSheetButtonStyle"

@@ -359,20 +359,6 @@
 
     <SwitchPreferenceCompat
         android:defaultValue="true"
-        android:key="chat_show_plus_paints"
-        android:title="@string/show_plus_paints"
-        app:iconSpaceReserved="false"
-        app:singleLineTitle="false" />
-
-    <SwitchPreferenceCompat
-        android:defaultValue="true"
-        android:key="chat_show_plus_badges"
-        android:title="@string/show_plus_badges"
-        app:iconSpaceReserved="false"
-        app:singleLineTitle="false" />
-
-    <SwitchPreferenceCompat
-        android:defaultValue="true"
         android:key="chat_show_stv_badges"
         android:title="@string/show_stv_badges"
         app:iconSpaceReserved="false"

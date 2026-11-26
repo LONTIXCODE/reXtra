@@ -88,6 +88,7 @@ import kotlin.math.roundToInt
 
 class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickListener, ReplyClickedDialog.OnButtonClickListener {
 
+    internal val chatChannelLogin: String? get() = arguments?.getString(KEY_CHANNEL_LOGIN)
     internal val chatChannelId: String? get() = arguments?.getString(KEY_CHANNEL_ID)
 
     private var _binding: FragmentChatBinding? = null
@@ -333,45 +334,6 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                                 }
                             }
                         })
-                    }
-                    chatTools.isVisible = true
-                    chatTools.setOnClickListener { anchor ->
-                        val context = requireContext()
-                        val cacheChannel = StvImageCache.channelId(channelId)
-                        if (cacheChannel == null) {
-                            showChatSearch()
-                        } else {
-                            val cache = (context.applicationContext as XtraApp).xtraModule.chatMediaNetwork.stvCache
-                            PopupMenu(context, anchor).apply {
-                                menu.add(R.string.chat_search).setOnMenuItemClickListener {
-                                    showChatSearch()
-                                    true
-                                }
-                                if (isLive && cacheChannel == context.tokenPrefs().getString(C.USER_ID, null)) {
-                                    menu.add(R.string.chat_banned_users).setOnMenuItemClickListener {
-                                        showBannedUsers(cacheChannel)
-                                        true
-                                    }
-                                }
-                                if (isLive && isLoggedIn) {
-                                    val rule = viewModel.autoPredictionRule(cacheChannel)
-                                    menu.add(if (rule == null) R.string.chat_auto_prediction else R.string.chat_auto_prediction_enabled)
-                                        .setOnMenuItemClickListener {
-                                            showAutoPrediction(cacheChannel)
-                                            true
-                                        }
-                                }
-                                val keepCache = cacheChannel in cache.excluded()
-                                menu.add(if (keepCache) R.string.stv_cache_unpin else R.string.stv_cache_pin)
-                                    .setOnMenuItemClickListener {
-                                        val current = cache.excluded()
-                                        val updated = if (keepCache) current - cacheChannel else current + cacheChannel
-                                        context.prefs().edit { putString(StvImageCache.EXCLUDED, updated.sorted().joinToString(",")) }
-                                        Toast.makeText(context, if (keepCache) R.string.stv_cache_unpin else R.string.stv_cache_pin, Toast.LENGTH_SHORT).show()
-                                        true
-                                    }
-                            }.show()
-                        }
                     }
                     btnDown.setOnClickListener {
                         view.post {
@@ -1121,6 +1083,35 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
 
     fun appendEmote(emote: Emote) {
         binding.editText.text.append(emote.name).append(' ')
+    }
+
+    internal fun playerMenuActions(): List<Pair<Int, () -> Unit>> {
+        if (adapter == null || view == null) return emptyList()
+        val context = requireContext()
+        val channel = StvImageCache.channelId(chatChannelId)
+        val live = arguments?.getBoolean(KEY_IS_LIVE) == true
+        return buildList {
+            add(R.string.chat_search to { showChatSearch() })
+            if (channel == null) return@buildList
+            if (live && channel == context.tokenPrefs().getString(C.USER_ID, null)) {
+                add(R.string.chat_banned_users to { showBannedUsers(channel) })
+            }
+            if (live && messagingEnabled) {
+                val enabled = viewModel.autoPredictionRule(channel) != null
+                add((if (enabled) R.string.chat_auto_prediction_enabled else R.string.chat_auto_prediction) to {
+                    showAutoPrediction(channel)
+                })
+            }
+            val cache = (context.applicationContext as XtraApp).xtraModule.chatMediaNetwork.stvCache
+            val keep = channel in cache.excluded()
+            val label = if (keep) R.string.stv_cache_unpin else R.string.stv_cache_pin
+            add(label to {
+                val current = cache.excluded()
+                val updated = if (keep) current - channel else current + channel
+                context.prefs().edit { putString(StvImageCache.EXCLUDED, updated.sorted().joinToString(",")) }
+                Toast.makeText(context, label, Toast.LENGTH_SHORT).show()
+            })
+        }
     }
 
     private fun showPollVoting(login: String) {

@@ -120,4 +120,10 @@
         app:iconSpaceReserved="false"
         app:singleLineTitle="false" />
 
+    <SwitchPreferenceCompat
+        android:defaultValue="true"
+        android:key="player_menu_chat_tools"
+        android:title="@string/chat_tools"
+        app:iconSpaceReserved="false" />
+
 </androidx.preference.PreferenceScreen>

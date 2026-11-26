@@ -714,4 +714,25 @@
     <string name="chat_auto_prediction_sent">Automatic prediction accepted.</string>
     <string name="chat_user_mention">Mention in chat</string>
     <string name="chat_user_search">Find messages from this user</string>
+    <string name="player_live_catchup">Catch up to live</string>
+    <string name="player_live_catchup_summary">Speed up live playback to 1.1× when needed. Custom live speed settings take priority. ExoPlayer only.</string>
+    <string name="chat_plus_avatars">Chatterino+ avatars in user cards</string>
+    <string name="chat_plus_banners">Chatterino+ banners in user cards</string>
+    <string name="chat_plus_shared_bans">Shared bans</string>
+    <string name="chat_plus_shared_bans_summary">Show the Chatterino+ ban history button in user cards.</string>
+    <string name="chat_plus_sign_out">Sign out of Chatterino+</string>
+    <string name="chat_plus_shared_bans_count">Shared bans · %d</string>
+    <string name="chat_plus_shared_bans_for">Shared bans · %s</string>
+    <string name="chat_plus_sign_in">Sign in to Chatterino+</string>
+    <string name="chat_plus_sign_in_info">To view ban history, authorize Chatterino+ via Twitch. The service receives your Twitch ID, the selected user ID and the current chat channel.</string>
+    <string name="chat_plus_sign_in_wait">Complete sign-in in your browser and return here.</string>
+    <string name="chat_plus_bans_loading">Loading shared bans…</string>
+    <string name="chat_plus_bans_empty">Chatterino+ has no ban records for this user.</string>
+    <string name="chat_plus_ban_lifted">Lifted</string>
+    <string name="chat_plus_ban_active">Active ban</string>
+    <string name="chat_plus_twitch_required">Sign in to Twitch in reXtra first.</string>
+    <string name="chat_plus_account_mismatch">Sign-in declined. Use the same Twitch account as in reXtra.</string>
+    <string name="chat_plus_sign_in_expired">The sign-in link expired. Start sign-in again.</string>
+    <string name="chat_plus_bans_limit">Chatterino+ request limit reached. Try again later.</string>
+    <string name="chat_plus_connection">Chatterino+ did not respond. Check the chat connection and try again.</string>
 </resources>

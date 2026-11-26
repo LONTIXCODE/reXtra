@@ -52,6 +52,18 @@ class PlayerSettingsDialog : BottomSheetDialogFragment() {
         val arguments = requireArguments()
         val type = arguments.getString(TYPE)
         with(binding) {
+            if (requireContext().prefs().getBoolean(C.PLAYER_MENU_CHAT_TOOLS, true)) {
+                val actions = (parentFragment as? PlayerFragment)?.chatMenuActions().orEmpty()
+                actions.forEach { (title, action) ->
+                    val row = layoutInflater.inflate(R.layout.player_menu_chat_action, menuChatActions, false) as android.widget.TextView
+                    row.setText(title)
+                    row.setOnClickListener {
+                        dismiss()
+                        action()
+                    }
+                    menuChatActions.addView(row)
+                }
+            }
             if (type != BasePlaybackService.STREAM && requireContext().prefs().getBoolean(C.PLAYER_MENU_SPEED, false)) {
                 menuSpeed.visibility = View.VISIBLE
                 menuSpeed.setOnClickListener {

@@ -694,4 +694,25 @@
     <string name="chat_auto_prediction_sent">Автоставка принята.</string>
     <string name="chat_user_mention">Упомянуть в чате</string>
     <string name="chat_user_search">Найти сообщения пользователя</string>
+    <string name="player_live_catchup">Догонять прямой эфир</string>
+    <string name="player_live_catchup_summary">Плеер ускоряет эфир до 1,1× при отставании. Ручные настройки скорости имеют приоритет. Работает в ExoPlayer.</string>
+    <string name="chat_plus_avatars">Аватарки Chatterino+ в карточках пользователей</string>
+    <string name="chat_plus_banners">Баннеры Chatterino+ в карточках пользователей</string>
+    <string name="chat_plus_shared_bans">Общие баны</string>
+    <string name="chat_plus_shared_bans_summary">Показывать кнопку истории банов Chatterino+ в карточках пользователей.</string>
+    <string name="chat_plus_sign_out">Выйти из Chatterino+</string>
+    <string name="chat_plus_shared_bans_count">Общие баны · %d</string>
+    <string name="chat_plus_shared_bans_for">Общие баны · %s</string>
+    <string name="chat_plus_sign_in">Войти в Chatterino+</string>
+    <string name="chat_plus_sign_in_info">Для просмотра истории банов войдите в Chatterino+ через Twitch. Сервис получает ваш Twitch ID, ID выбранного пользователя и текущего канала чата.</string>
+    <string name="chat_plus_sign_in_wait">Завершите вход в браузере и вернитесь сюда.</string>
+    <string name="chat_plus_bans_loading">Загружаем общие баны…</string>
+    <string name="chat_plus_bans_empty">В Chatterino+ нет записей о банах этого пользователя.</string>
+    <string name="chat_plus_ban_lifted">Бан снят</string>
+    <string name="chat_plus_ban_active">Активный бан</string>
+    <string name="chat_plus_twitch_required">Сначала войдите в Twitch в reXtra.</string>
+    <string name="chat_plus_account_mismatch">Вход отклонён. Используйте тот же аккаунт Twitch, что и в reXtra.</string>
+    <string name="chat_plus_sign_in_expired">Срок действия ссылки истёк. Начните вход заново.</string>
+    <string name="chat_plus_bans_limit">Достигнут лимит запросов Chatterino+. Повторите позже.</string>
+    <string name="chat_plus_connection">Chatterino+ не ответил. Проверьте подключение чата и повторите попытку.</string>
 </resources>

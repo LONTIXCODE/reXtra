@@ -41,6 +41,14 @@
         app:singleLineTitle="false"
         app:useSimpleSummaryProvider="true" />
 
+    <SwitchPreferenceCompat
+        android:defaultValue="true"
+        android:key="player_live_catchup"
+        android:title="@string/player_live_catchup"
+        android:summary="@string/player_live_catchup_summary"
+        app:iconSpaceReserved="false"
+        app:singleLineTitle="false" />
+
     <EditTextPreference
         android:defaultValue=""
         android:key="player_live_min_speed"

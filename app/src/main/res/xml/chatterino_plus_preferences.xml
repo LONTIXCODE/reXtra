@@ -1,0 +1,40 @@
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <SwitchPreferenceCompat
+        android:defaultValue="true"
+        android:key="chat_show_plus_paints"
+        android:title="@string/show_plus_paints"
+        app:iconSpaceReserved="false"
+        app:singleLineTitle="false" />
+
+    <SwitchPreferenceCompat
+        android:defaultValue="true"
+        android:key="chat_show_plus_badges"
+        android:title="@string/show_plus_badges"
+        app:iconSpaceReserved="false"
+        app:singleLineTitle="false" />
+
+    <SwitchPreferenceCompat
+        android:defaultValue="false"
+        android:key="chat_plus_avatars"
+        android:title="@string/chat_plus_avatars"
+        app:iconSpaceReserved="false" />
+
+    <SwitchPreferenceCompat
+        android:defaultValue="false"
+        android:key="chat_plus_banners"
+        android:title="@string/chat_plus_banners"
+        app:iconSpaceReserved="false" />
+
+    <SwitchPreferenceCompat
+        android:defaultValue="true"
+        android:key="chat_plus_shared_bans"
+        android:title="@string/chat_plus_shared_bans"
+        android:summary="@string/chat_plus_shared_bans_summary"
+        app:iconSpaceReserved="false" />
+
+    <Preference
+        android:key="chat_plus_sign_out"
+        android:title="@string/chat_plus_sign_out"
+        app:iconSpaceReserved="false" />
+</androidx.preference.PreferenceScreen>
